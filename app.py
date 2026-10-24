@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from diary.assistant import Assistant
 from diary.engine import build_plan, describe_rule, load_rules
 from diary.storage import Storage, list_demos
 from diary.wiki import load_wiki, search
@@ -30,11 +31,12 @@ def test_catalog(rules_data):
 
 
 class App:
-    def __init__(self, storage=None, today=None):
+    def __init__(self, storage=None, today=None, assistant=None):
         self.storage = storage or Storage()
         self.today = today
         self.rules = load_rules()
         self.wiki = load_wiki()
+        self.assistant = assistant or Assistant(self.wiki, log_path=self.storage.user_dir / "llm_log.jsonl")
 
     def plan(self, today=None):
         state = self.storage.load()
@@ -58,6 +60,10 @@ class App:
                 return 200, [{k: a[k] for k in ("slug", "title", "category", "summary")} for a in found]
             if method == "GET" and path.startswith("/api/wiki/"):
                 return 200, self.wiki[path.rsplit("/", 1)[-1]]
+            if method == "POST" and path == "/api/ask":
+                return 200, self.assistant.ask(body.get("question", ""), self.plan(today))
+            if method == "GET" and path == "/api/assistant":
+                return 200, {"llm_enabled": self.assistant.llm_enabled}
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":
