@@ -1,0 +1,35 @@
+{
+  "name": "Пётр, 67 лет",
+  "description": "Старше 65: кал на скрытую кровь каждый год, ПСА по возрасту уже не положен.",
+  "profile": {
+    "birth_date": "1959-01-15",
+    "sex": "male",
+    "conditions": []
+  },
+  "history": [
+    {
+      "test": "fobt",
+      "date": "2026-01-20"
+    },
+    {
+      "test": "dispanserization",
+      "date": "2025-12-01"
+    },
+    {
+      "test": "fluorography",
+      "date": "2025-12-01"
+    },
+    {
+      "test": "ecg",
+      "date": "2025-12-01"
+    },
+    {
+      "test": "eye_pressure",
+      "date": "2025-12-01"
+    },
+    {
+      "test": "hepatitis_c",
+      "date": "2020-04-01"
+    }
+  ]
+}

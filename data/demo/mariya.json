@@ -1,0 +1,35 @@
+{
+  "name": "Мария, 25 лет",
+  "description": "Молодая пациентка, всё пройдено в сентябре: почти все статусы зелёные.",
+  "profile": {
+    "birth_date": "2001-07-01",
+    "sex": "female",
+    "conditions": []
+  },
+  "history": [
+    {
+      "test": "dispanserization",
+      "date": "2026-09-01"
+    },
+    {
+      "test": "fluorography",
+      "date": "2026-09-01"
+    },
+    {
+      "test": "gyn_exam",
+      "date": "2026-09-01"
+    },
+    {
+      "test": "cervical_cytology",
+      "date": "2026-09-01"
+    },
+    {
+      "test": "ecg",
+      "date": "2026-09-01"
+    },
+    {
+      "test": "hepatitis_c",
+      "date": "2026-09-01"
+    }
+  ]
+}

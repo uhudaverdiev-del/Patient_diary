@@ -1,0 +1,188 @@
+{
+  "version": "2026-10-24",
+  "soon_days": 60,
+  "sources": {
+    "404n": {
+      "title": "Приказ Минздрава России от 27.04.2021 № 404н «Об утверждении Порядка проведения профилактического медицинского осмотра и диспансеризации определенных групп взрослого населения» (с изменениями)",
+      "url": "https://base.garant.ru/401414440/53f89421bbdaf741eb2d1ecc4ddb4c33/"
+    },
+    "404n_app2": {
+      "title": "Приказ № 404н, приложение № 2 «Перечень мероприятий скрининга … на раннее выявление онкологических заболеваний»",
+      "url": "https://base.garant.ru/401414440/56ae36fc84d31bc2f9c0b07177fa16a9/"
+    }
+  },
+  "rules": [
+    {
+      "id": "profosmotr",
+      "title": "Профилактический медицинский осмотр",
+      "test": "profosmotr",
+      "satisfied_by": ["dispanserization"],
+      "sex": "any",
+      "age_min": 18,
+      "age_max": null,
+      "interval_months": 12,
+      "includes": "анкетирование, рост, вес, окружность талии и ИМТ, артериальное давление, общий холестерин, глюкоза натощак, оценка сердечно-сосудистого риска, осмотр по результатам",
+      "source": "404n",
+      "clause": "п. 16",
+      "wiki": "profosmotr"
+    },
+    {
+      "id": "dispanserization_18_39",
+      "title": "Диспансеризация, первый этап",
+      "test": "dispanserization",
+      "sex": "any",
+      "age_min": 18,
+      "age_max": 39,
+      "interval_months": 36,
+      "includes": "профилактический осмотр, онкоскрининг по возрасту, краткое профилактическое консультирование, приём терапевта",
+      "source": "404n",
+      "clause": "п. 5, п. 17",
+      "wiki": "dispanserization"
+    },
+    {
+      "id": "dispanserization_40",
+      "title": "Диспансеризация, первый этап",
+      "test": "dispanserization",
+      "sex": "any",
+      "age_min": 40,
+      "age_max": null,
+      "interval_months": 12,
+      "includes": "профилактический осмотр, онкоскрининг по возрасту, общий анализ крови, краткое профилактическое консультирование, приём терапевта",
+      "source": "404n",
+      "clause": "п. 5, п. 17",
+      "wiki": "dispanserization"
+    },
+    {
+      "id": "fluorography",
+      "title": "Флюорография или рентгенография лёгких",
+      "test": "fluorography",
+      "sex": "any",
+      "age_min": 18,
+      "age_max": null,
+      "interval_months": 24,
+      "source": "404n",
+      "clause": "п. 16",
+      "wiki": "fluorography"
+    },
+    {
+      "id": "ecg",
+      "title": "ЭКГ в покое",
+      "test": "ecg",
+      "sex": "any",
+      "age_min": 35,
+      "age_max": null,
+      "interval_months": 12,
+      "first_visit": true,
+      "source": "404n",
+      "clause": "п. 16",
+      "wiki": "ecg"
+    },
+    {
+      "id": "eye_pressure",
+      "title": "Измерение внутриглазного давления",
+      "test": "eye_pressure",
+      "sex": "any",
+      "age_min": 40,
+      "age_max": null,
+      "interval_months": 12,
+      "first_visit": true,
+      "source": "404n",
+      "clause": "п. 16",
+      "wiki": "eye_pressure"
+    },
+    {
+      "id": "hepatitis_c",
+      "title": "Анализ крови на антитела к гепатиту C",
+      "test": "hepatitis_c",
+      "sex": "any",
+      "age_min": 25,
+      "age_max": null,
+      "interval_months": 120,
+      "source": "404n",
+      "clause": "п. 16, пп. 11.1",
+      "wiki": "hepatitis_c"
+    },
+    {
+      "id": "gyn_exam",
+      "title": "Осмотр акушеркой или гинекологом",
+      "test": "gyn_exam",
+      "sex": "female",
+      "age_min": 18,
+      "age_max": null,
+      "interval_months": 12,
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1а",
+      "wiki": "cervical_screening"
+    },
+    {
+      "id": "cervical_cytology",
+      "title": "Мазок с шейки матки (цитология по Папаниколау)",
+      "test": "cervical_cytology",
+      "sex": "female",
+      "age_min": 18,
+      "age_max": 64,
+      "interval_months": 36,
+      "exclude_if": ["hysterectomy"],
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1а",
+      "wiki": "cervical_screening"
+    },
+    {
+      "id": "mammography",
+      "title": "Маммография обеих молочных желёз",
+      "test": "mammography",
+      "sex": "female",
+      "age_min": 40,
+      "age_max": 75,
+      "interval_months": 24,
+      "exclude_if": ["mastectomy"],
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1б",
+      "wiki": "mammography"
+    },
+    {
+      "id": "psa",
+      "title": "Анализ крови на ПСА (простатспецифический антиген)",
+      "test": "psa",
+      "sex": "male",
+      "at_ages": [45, 50, 55, 60, 64],
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1в",
+      "wiki": "psa"
+    },
+    {
+      "id": "fobt_40_64",
+      "title": "Анализ кала на скрытую кровь (иммунохимический)",
+      "test": "fobt",
+      "sex": "any",
+      "age_min": 40,
+      "age_max": 64,
+      "interval_months": 24,
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1г",
+      "wiki": "colorectal_screening"
+    },
+    {
+      "id": "fobt_65_75",
+      "title": "Анализ кала на скрытую кровь (иммунохимический)",
+      "test": "fobt",
+      "sex": "any",
+      "age_min": 65,
+      "age_max": 75,
+      "interval_months": 12,
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1г",
+      "wiki": "colorectal_screening"
+    },
+    {
+      "id": "egd",
+      "title": "Эзофагогастродуоденоскопия (ЭГДС)",
+      "test": "egd",
+      "sex": "any",
+      "at_ages": [45],
+      "source": "404n_app2",
+      "clause": "прил. 2, п. 1е",
+      "wiki": "egd"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "Иван, 44 года",
+  "description": "Скоро 45 лет: появятся ПСА и ЭГДС. Остальное пройдено в этом году.",
+  "profile": {
+    "birth_date": "1981-11-20",
+    "sex": "male",
+    "smoking": "Курит",
+    "conditions": []
+  },
+  "history": [
+    {
+      "test": "dispanserization",
+      "date": "2026-02-01"
+    },
+    {
+      "test": "fluorography",
+      "date": "2026-02-01"
+    },
+    {
+      "test": "ecg",
+      "date": "2026-02-01"
+    },
+    {
+      "test": "eye_pressure",
+      "date": "2026-02-01"
+    },
+    {
+      "test": "hepatitis_c",
+      "date": "2026-02-01"
+    },
+    {
+      "test": "fobt",
+      "date": "2026-02-01"
+    }
+  ]
+}
