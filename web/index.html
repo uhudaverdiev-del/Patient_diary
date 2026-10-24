@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дневник здоровья</title>
+<style>
+  :root {
+    --bg: #f5f7f9; --card: #ffffff; --text: #1d2730; --muted: #5d6b78; --line: #e1e6eb;
+    --accent: #1f6feb; --accent-soft: #e8f0fd;
+    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .bar { max-width: 1080px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .logo { font-weight: 700; font-size: 18px; margin-right: auto; }
+  .logo span { color: var(--accent); }
+  nav { max-width: 1080px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
+  nav button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 12px; font: inherit; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 24px 0 10px; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .grid { display: grid; gap: 12px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 16px; }
+  .tile { border-radius: 12px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 28px; line-height: 1.2; }
+  .tile.overdue { background: var(--bad-soft); color: var(--bad); }
+  .tile.soon { background: var(--soon-soft); color: var(--soon); }
+  .tile.actual { background: var(--ok-soft); color: var(--ok); }
+  .tile.progress { background: var(--accent-soft); color: var(--accent); }
+  .meter { height: 8px; background: rgba(0,0,0,.08); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: currentColor; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pill.overdue { background: var(--bad-soft); color: var(--bad); }
+  .pill.soon { background: var(--soon-soft); color: var(--soon); }
+  .pill.actual { background: var(--ok-soft); color: var(--ok); }
+  .item { display: grid; grid-template-columns: 6px 1fr auto; gap: 14px; padding: 14px 16px; }
+  .item::before { content: ""; border-radius: 3px; background: var(--ok); }
+  .item.overdue::before { background: var(--bad); }
+  .item.soon::before { background: var(--soon); }
+  .item h3 { margin: 0 0 2px; font-size: 16px; }
+  .item .dates { margin: 6px 0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+  .item .note { font-size: 14px; color: var(--soon); margin: 4px 0 0; }
+  .item .src { font-size: 13px; }
+  .actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  button.btn, a.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  button.btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  button.btn.danger { background: var(--bad-soft); color: var(--bad); }
+  .banner { border-radius: 10px; padding: 12px 14px; margin: 12px 0; background: var(--soon-soft); color: #5a3a00; }
+  .banner.block { background: var(--bad-soft); color: #6d1414; }
+  .cal { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .month h3 { margin: 0 0 8px; font-size: 15px; }
+  .month.now { border-color: var(--accent); }
+  .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
+  .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .chip.soon { border-color: var(--soon); background: var(--soon-soft); }
+  .chip small { display: block; color: var(--muted); }
+  form .row { display: grid; gap: 6px; margin-bottom: 14px; }
+  label { font-weight: 600; font-size: 14px; }
+  input, select, textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; width: 100%; }
+  .checks label { font-weight: 400; display: flex; gap: 8px; align-items: center; }
+  .checks input { width: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+  dialog { border: 0; border-radius: 14px; padding: 0; width: min(520px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(20,30,40,.4); }
+  dialog .card { border: 0; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d2730; color: #fff; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .placeholder { text-align: center; padding: 40px 16px; }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
+  @media (max-width: 640px) {
+    .item { grid-template-columns: 6px 1fr; }
+    .actions { grid-column: 2; flex-direction: row; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">Дневник <span>здоровья</span></div>
+    <label for="demo" class="muted" style="font-weight:400">Демо-пациент:</label>
+    <select id="demo" style="width:auto"></select>
+    <button class="btn" id="markBtn">+ Отметить прохождение</button>
+  </div>
+  <nav id="tabs">
+    <button data-tab="home" class="active">Главная</button>
+    <button data-tab="plan">Мой план</button>
+    <button data-tab="calendar">Календарь</button>
+    <button data-tab="history">Пройдено</button>
+    <button data-tab="profile">Профиль</button>
+    <button data-tab="wiki">Здоровье / Wiki</button>
+  </nav>
+</header>
+
+<main id="view"></main>
+
+<footer>
+  План строится по приказу Минздрава России от 27.04.2021 № 404н. Сервис не заменяет консультацию врача.
+  Дата расчёта: <input type="date" id="today" style="width:auto;padding:2px 6px"> <span id="todayHint"></span>
+</footer>
+
+<dialog id="markDialog">
+  <form class="card" id="markForm" method="dialog">
+    <h2 style="margin-top:0">Отметить пройденное обследование</h2>
+    <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
+    <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
+    <div class="row"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
+    <div class="row"><label for="mFile">Файл (PDF или фото, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,image/*"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" class="btn ghost" id="mCancel">Отмена</button>
+      <button type="submit" class="btn">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { plan: null, tests: [], demos: [], tab: "home" };
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU") : "—";
+const SEX = { female: "Женский", male: "Мужской" };
+const CONDITIONS = { mastectomy: "Перенесена мастэктомия", hysterectomy: "Перенесена экстирпация (удаление) матки" };
+
+function todayParam() { const v = $("#today").value; return v ? "?today=" + v : ""; }
+
+async function api(method, path, body) {
+  const res = await fetch(path + todayParam(), {
+    method, headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Ошибка");
+  return data;
+}
+
+function toast(text) {
+  const t = $("#toast"); t.textContent = text; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+function problemsHtml(plan) {
+  return plan.problems.map((p) =>
+    `<div class="banner ${p.level === "blocking" ? "block" : ""}">${esc(p.message)}
+     ${p.field === "birth_date" || p.field === "sex" ? ` <a href="#" data-goto="profile">Заполнить профиль</a>` : ""}</div>`).join("");
+}
+
+function itemHtml(it, compact) {
+  return `<div class="card item ${it.status}">
+    <div>
+      <h3>${esc(it.title)} <span class="pill ${it.status}">${esc(it.status_label)}</span></h3>
+      <div class="muted" style="font-size:14px">Кому положено: ${esc(it.who)}. Бесплатно по ОМС.</div>
+      <div class="dates"><span>Последнее: <b>${fmt(it.last_date)}</b></span><span>Следующее: <b>${fmt(it.next_due)}</b></span></div>
+      ${it.notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}
+      ${compact ? "" : `${it.includes ? `<div class="muted" style="font-size:14px">Включает: ${esc(it.includes)}</div>` : ""}
+      <div class="src muted">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} приказа № 404н</a></div>`}
+    </div>
+    <div class="actions">
+      <button class="btn" data-mark="${esc(it.test)}">Пройдено</button>
+      ${compact ? "" : `<button class="btn ghost" data-wiki="${esc(it.wiki)}">Зачем это?</button>`}
+    </div>
+  </div>`;
+}
+
+function monthTitle(d) {
+  const month = d.toLocaleDateString("ru-RU", { month: "long" });
+  return month[0].toUpperCase() + month.slice(1) + " " + d.getFullYear();
+}
+
+const VIEWS = {
+  home(plan) {
+    const name = plan.name ? esc(plan.name) : "Добро пожаловать";
+    if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
+    const s = plan.summary;
+    const next = plan.items.filter((i) => i.status !== "actual").slice(0, 5);
+    return `<h1>${name}</h1>
+      <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
+      ${problemsHtml(plan)}
+      <div class="grid tiles">
+        <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
+        <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
+        <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
+        <div class="tile progress"><b>${s.progress_percent}%</b>план выполнен<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
+      </div>
+      <h2>Что сделать в первую очередь</h2>
+      ${next.length ? `<div class="grid">${next.map((i) => itemHtml(i, true)).join("")}</div>`
+        : `<div class="card">Всё пройдено вовремя. Следующее обследование: ${esc(plan.items[0]?.title || "")} ${fmt(plan.items[0]?.next_due)}.</div>`}
+      <p class="muted">Все обследования из плана входят в профилактический осмотр и диспансеризацию и проводятся бесплатно по полису ОМС в поликлинике по месту прикрепления.</p>`;
+  },
+
+  plan(plan) {
+    if (!plan.ready) return `<h1>Мой план</h1>${problemsHtml(plan)}`;
+    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"], ["actual", "Актуально"]];
+    return `<h1>Мой план профилактики</h1>
+      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.</div>
+      ${problemsHtml(plan)}
+      ${groups.map(([st, title]) => {
+        const items = plan.items.filter((i) => i.status === st);
+        return items.length ? `<h2>${title} (${items.length})</h2><div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>` : "";
+      }).join("")}`;
+  },
+
+  calendar(plan) {
+    if (!plan.ready) return `<h1>Календарь</h1>${problemsHtml(plan)}`;
+    const today = new Date(plan.today + "T00:00:00");
+    const months = [];
+    for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
+    const key = (d) => d.getFullYear() * 12 + d.getMonth();
+    const chip = (i) => `<span class="chip ${i.status}" data-mark="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)} · ${fmt(i.next_due)}</small></span>`;
+    const overdue = plan.items.filter((i) => i.status === "overdue");
+    const later = plan.items.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
+    return `<h1>Календарь обследований</h1>
+      <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
+      <div class="grid cal" style="margin-top:16px">
+        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Просрочено</h3>${overdue.map(chip).join("")}</div>` : ""}
+        ${months.map((m, idx) => {
+          const items = plan.items.filter((i) => i.status !== "overdue" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
+          return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
+            ${items.length ? items.map(chip).join("") : `<span class="muted" style="font-size:13px">Ничего не запланировано</span>`}</div>`;
+        }).join("")}
+        ${later.length ? `<div class="card month"><h3>Позже</h3>${later.map(chip).join("")}</div>` : ""}
+      </div>`;
+  },
+
+  history(plan) {
+    const titles = Object.fromEntries(S.tests.map((t) => [t.test, t.title]));
+    const rows = plan.history.map((r) => `<tr>
+        <td>${fmt(r.date)}</td><td>${esc(titles[r.test] || r.test)}</td><td>${esc(r.result)}</td>
+        <td>${r.file ? `<a href="/files/${encodeURIComponent(r.file.stored)}" target="_blank">${esc(r.file.name)}</a>` : ""}</td>
+        <td><button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
+    return `<h1>Пройденные обследования</h1>
+      <div class="muted">После каждой записи сроки и статусы в плане пересчитываются автоматически.</div>
+      <div class="card" style="margin-top:16px;overflow-x:auto">
+        ${rows ? `<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th><th>Файл</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+          : `<p class="muted">Пока нет записей. Нажмите «+ Отметить прохождение».</p>`}
+      </div>`;
+  },
+
+  profile(plan) {
+    const p = plan.profile || {};
+    const conds = new Set(p.conditions || []);
+    return `<h1>Профиль</h1>
+      <div class="muted">Обязательны только дата рождения и пол: от них зависит состав плана.</div>
+      ${problemsHtml(plan)}
+      <form class="card" id="profileForm" style="margin-top:16px;max-width:520px">
+        <div class="row"><label for="pName">Имя</label><input id="pName" value="${esc(plan.name)}"></div>
+        <div class="row"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}"></div>
+        <div class="row"><label for="pSex">Пол *</label><select id="pSex">
+          <option value="">не указан</option>
+          ${Object.entries(SEX).map(([v, t]) => `<option value="${v}" ${p.sex === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+        <div class="row"><label for="pSmoking">Курение</label><select id="pSmoking">
+          ${["", "Не курит", "Курит", "Бросил курить"].map((v) => `<option ${p.smoking === v ? "selected" : ""} value="${v}">${v || "не указано"}</option>`).join("")}</select></div>
+        <div class="row checks"><label>Перенесённые операции, которые меняют план</label>
+          ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
+        <button class="btn" type="submit">Сохранить и пересчитать план</button>
+      </form>`;
+  },
+
+  wiki() {
+    return `<h1>Здоровье / Wiki</h1><div class="card placeholder muted">
+      Раздел в работе: статьи об ОМС, диспансеризации и каждом обследовании из плана со ссылками на источники.</div>`;
+  },
+};
+
+function render() {
+  if (!S.plan) return;
+  $("#view").innerHTML = VIEWS[S.tab](S.plan);
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === S.tab));
+  $("#todayHint").textContent = "(расчёт на " + fmt(S.plan.today) + ")";
+}
+
+function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+
+function openMark(test) {
+  $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === test ? "selected" : ""}>${esc(t.title)}</option>`).join("");
+  $("#mDate").value = S.plan.today;
+  $("#mDate").max = S.plan.today;
+  $("#mResult").value = "";
+  $("#mFile").value = "";
+  $("#markDialog").showModal();
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve({ name: file.name, data: r.result });
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki]");
+  if (!t) return;
+  if (t.dataset.tab) return go(t.dataset.tab);
+  if (t.dataset.goto) { e.preventDefault(); return go(t.dataset.goto); }
+  if (t.dataset.mark) return openMark(t.dataset.mark);
+  if (t.dataset.wiki !== undefined) return go("wiki");
+  if (t.dataset.del && confirm("Удалить запись?")) {
+    S.plan = await api("DELETE", "/api/history/" + t.dataset.del); render(); toast("Запись удалена, план пересчитан");
+  }
+});
+
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "profileForm") return;
+  e.preventDefault();
+  const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
+  try {
+    S.plan = await api("POST", "/api/profile", { name: $("#pName").value, profile: {
+      birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions } });
+    render(); toast("Профиль сохранён, план пересчитан");
+  } catch (err) { toast(err.message); }
+});
+
+$("#markForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = { test: $("#mTest").value, date: $("#mDate").value, result: $("#mResult").value };
+  const file = $("#mFile").files[0];
+  try {
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) throw new Error("Файл больше 10 МБ");
+      body.file = await readFile(file);
+    }
+    S.plan = await api("POST", "/api/history", body);
+    $("#markDialog").close(); render(); toast("Сохранено, сроки пересчитаны");
+  } catch (err) { toast(err.message); }
+});
+$("#mCancel").onclick = () => $("#markDialog").close();
+$("#markBtn").onclick = () => openMark();
+$("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
+$("#demo").onchange = async () => {
+  if (!$("#demo").value) return;
+  S.plan = await api("POST", "/api/demo", { id: $("#demo").value }); go("home"); toast("Загружен демо-пациент");
+};
+
+(async function init() {
+  [S.tests, S.demos, S.plan] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan")]);
+  $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");
+  render();
+})();
+</script>
+</body>
+</html>
