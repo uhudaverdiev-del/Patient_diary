@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 
 from diary.engine import build_plan, describe_rule, load_rules
 from diary.storage import Storage, list_demos
+from diary.wiki import load_wiki, search
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAX_BODY = 15 * 1024 * 1024
@@ -33,6 +34,7 @@ class App:
         self.storage = storage or Storage()
         self.today = today
         self.rules = load_rules()
+        self.wiki = load_wiki()
 
     def plan(self, today=None):
         state = self.storage.load()
@@ -50,6 +52,12 @@ class App:
                 return 200, self.plan(today)
             if method == "GET" and path == "/api/demos":
                 return 200, list_demos()
+            if method == "GET" and path == "/api/wiki":
+                q = (query.get("q") or [""])[0]
+                found = search(self.wiki, q) if q.strip() else list(self.wiki.values())
+                return 200, [{k: a[k] for k in ("slug", "title", "category", "summary")} for a in found]
+            if method == "GET" and path.startswith("/api/wiki/"):
+                return 200, self.wiki[path.rsplit("/", 1)[-1]]
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":
