@@ -1,0 +1,32 @@
+{
+  "name": "Анна, 41 год",
+  "description": "Главный сценарий: не была на диспансеризации 3 года, не знает, что после 40 лет положены маммография и ежегодная диспансеризация.",
+  "profile": {
+    "birth_date": "1985-03-12",
+    "sex": "female",
+    "smoking": "Не курит",
+    "conditions": []
+  },
+  "history": [
+    {
+      "test": "dispanserization",
+      "date": "2023-05-10"
+    },
+    {
+      "test": "fluorography",
+      "date": "2023-05-10"
+    },
+    {
+      "test": "gyn_exam",
+      "date": "2023-05-10"
+    },
+    {
+      "test": "cervical_cytology",
+      "date": "2023-05-10"
+    },
+    {
+      "test": "ecg",
+      "date": "2023-05-10"
+    }
+  ]
+}

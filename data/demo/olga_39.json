@@ -1,0 +1,37 @@
+{
+  "name": "Ольга, 39 лет",
+  "description": "Пограничный возраст: через 2 месяца 40, диспансеризация станет ежегодной.",
+  "profile": {
+    "birth_date": "1987-01-01",
+    "sex": "female",
+    "conditions": [
+      "mastectomy"
+    ]
+  },
+  "history": [
+    {
+      "test": "dispanserization",
+      "date": "2024-03-01"
+    },
+    {
+      "test": "fluorography",
+      "date": "2024-03-01"
+    },
+    {
+      "test": "gyn_exam",
+      "date": "2024-03-01"
+    },
+    {
+      "test": "cervical_cytology",
+      "date": "2024-03-01"
+    },
+    {
+      "test": "ecg",
+      "date": "2024-03-01"
+    },
+    {
+      "test": "hepatitis_c",
+      "date": "2024-03-01"
+    }
+  ]
+}
