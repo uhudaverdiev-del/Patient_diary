@@ -72,6 +72,13 @@
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d2730; color: #fff; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
   .placeholder { text-align: center; padding: 40px 16px; }
+  .wiki-card { display: grid; gap: 4px; color: inherit; text-decoration: none; font-size: 14px; }
+  .wiki-card:hover { border-color: var(--accent); }
+  .wiki-card b { font-size: 15px; }
+  .md h2 { margin-top: 20px; }
+  .md p, .md li { max-width: 68ch; }
+  .md table { margin: 8px 0; max-width: 480px; }
+  ol.src li { margin: 4px 0; font-size: 14px; }
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) {
     .item { grid-template-columns: 6px 1fr; }
@@ -127,10 +134,10 @@ const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU
 const SEX = { female: "Женский", male: "Мужской" };
 const CONDITIONS = { mastectomy: "Перенесена мастэктомия", hysterectomy: "Перенесена экстирпация (удаление) матки" };
 
-function todayParam() { const v = $("#today").value; return v ? "?today=" + v : ""; }
+function todayParam(path) { const v = $("#today").value; return v ? (path.includes("?") ? "&" : "?") + "today=" + v : ""; }
 
 async function api(method, path, body) {
-  const res = await fetch(path + todayParam(), {
+  const res = await fetch(path + todayParam(path), {
     method, headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -172,6 +179,48 @@ function monthTitle(d) {
   return month[0].toUpperCase() + month.slice(1) + " " + d.getFullYear();
 }
 
+function inline(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+function md(text) {
+  const out = [];
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    if (line.startsWith("## ")) { out.push(`<h2>${inline(line.slice(3))}</h2>`); continue; }
+    if (line.startsWith("- ")) {
+      const items = [];
+      while (i < lines.length && lines[i].startsWith("- ")) items.push(`<li>${inline(lines[i++].slice(2))}</li>`);
+      i--; out.push(`<ul>${items.join("")}</ul>`); continue;
+    }
+    if (line.startsWith("|")) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
+      i--;
+      const cells = (r) => r.split("|").slice(1, -1).map((c) => c.trim());
+      const body = rows.slice(2).map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("");
+      out.push(`<table><thead><tr>${cells(rows[0]).map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`);
+      continue;
+    }
+    const para = [line];
+    while (i + 1 < lines.length && lines[i + 1].trim() && !/^(## |- |\|)/.test(lines[i + 1])) para.push(lines[++i]);
+    out.push(`<p>${inline(para.join(" "))}</p>`);
+  }
+  return out.join("");
+}
+
+async function openArticle(slug) {
+  S.article = await api("GET", "/api/wiki/" + encodeURIComponent(slug));
+  go("wiki");
+}
+
+async function loadWikiList(q) {
+  S.wikiQuery = q || "";
+  S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
+}
+
 const VIEWS = {
   home(plan) {
     const name = plan.name ? esc(plan.name) : "Добро пожаловать";
@@ -190,7 +239,8 @@ const VIEWS = {
       <h2>Что сделать в первую очередь</h2>
       ${next.length ? `<div class="grid">${next.map((i) => itemHtml(i, true)).join("")}</div>`
         : `<div class="card">Всё пройдено вовремя. Следующее обследование: ${esc(plan.items[0]?.title || "")} ${fmt(plan.items[0]?.next_due)}.</div>`}
-      <p class="muted">Все обследования из плана входят в профилактический осмотр и диспансеризацию и проводятся бесплатно по полису ОМС в поликлинике по месту прикрепления.</p>`;
+      <p class="muted">Все обследования из плана входят в профилактический осмотр и диспансеризацию и проводятся бесплатно по полису ОМС в поликлинике по месту прикрепления.
+        <a href="#" data-article="how_to_pass">Как пройти диспансеризацию</a> · <a href="#" data-article="oms">Что даёт полис ОМС</a></p>`;
   },
 
   plan(plan) {
@@ -262,8 +312,28 @@ const VIEWS = {
   },
 
   wiki() {
-    return `<h1>Здоровье / Wiki</h1><div class="card placeholder muted">
-      Раздел в работе: статьи об ОМС, диспансеризации и каждом обследовании из плана со ссылками на источники.</div>`;
+    if (S.article) {
+      const a = S.article;
+      return `<p><a href="#" data-wikilist="1">← Все статьи</a></p>
+        <article class="card md" style="max-width:760px">
+          <div class="muted" style="font-size:13px">${esc(a.category)}</div>
+          <h1>${esc(a.title)}</h1>
+          ${md(a.body)}
+          <h2>Источники</h2>
+          <ol class="src">${a.sources.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join("")}</ol>
+          <p class="muted" style="font-size:13px">Актуальность источников проверена ${fmt(a.checked)}. Материал носит справочный характер и не заменяет консультацию врача.</p>
+        </article>`;
+    }
+    const groups = {};
+    const ORDER = ["ОМС и права пациента", "Диспансеризация", "Обследования", "Онкоскрининг", "Сохранение здоровья"];
+    ORDER.forEach((c) => (groups[c] = []));
+    (S.wikiList || []).forEach((a) => (groups[a.category] = groups[a.category] || []).push(a));
+    return `<h1>Здоровье / Wiki</h1>
+      <div class="muted">Понятные статьи об ОМС, диспансеризации и обследованиях. У каждой статьи есть ссылки на официальные источники.</div>
+      <input id="wikiSearch" placeholder="Поиск: например, «выходной для диспансеризации»" value="${esc(S.wikiQuery || "")}" style="margin:16px 0;max-width:520px">
+      ${(S.wikiList || []).length ? Object.entries(groups).filter(([, list]) => list.length).map(([cat, list]) => `<h2>${esc(cat)}</h2>
+        <div class="grid tiles">${list.map((a) => `<a href="#" class="card wiki-card" data-article="${esc(a.slug)}"><b>${esc(a.title)}</b><span class="muted">${esc(a.summary)}</span></a>`).join("")}</div>`).join("")
+        : `<div class="card muted">Ничего не найдено. Попробуйте другие слова.</div>`}`;
   },
 };
 
@@ -295,12 +365,14 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki]");
+  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist]");
   if (!t) return;
-  if (t.dataset.tab) return go(t.dataset.tab);
+  if (t.dataset.article) { e.preventDefault(); return openArticle(t.dataset.article); }
+  if (t.dataset.wikilist) { e.preventDefault(); S.article = null; return go("wiki"); }
+  if (t.dataset.tab) { if (t.dataset.tab === "wiki") S.article = null; return go(t.dataset.tab); }
   if (t.dataset.goto) { e.preventDefault(); return go(t.dataset.goto); }
   if (t.dataset.mark) return openMark(t.dataset.mark);
-  if (t.dataset.wiki !== undefined) return go("wiki");
+  if (t.dataset.wiki) return openArticle(t.dataset.wiki);
   if (t.dataset.del && confirm("Удалить запись?")) {
     S.plan = await api("DELETE", "/api/history/" + t.dataset.del); render(); toast("Запись удалена, план пересчитан");
   }
@@ -315,6 +387,17 @@ document.addEventListener("submit", async (e) => {
       birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions } });
     render(); toast("Профиль сохранён, план пересчитан");
   } catch (err) { toast(err.message); }
+});
+
+let wikiTimer;
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "wikiSearch") return;
+  clearTimeout(wikiTimer);
+  wikiTimer = setTimeout(async () => {
+    await loadWikiList(e.target.value.trim());
+    render();
+    const box = $("#wikiSearch"); box.focus(); box.setSelectionRange(box.value.length, box.value.length);
+  }, 250);
 });
 
 $("#markForm").addEventListener("submit", async (e) => {
@@ -339,7 +422,7 @@ $("#demo").onchange = async () => {
 };
 
 (async function init() {
-  [S.tests, S.demos, S.plan] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan")]);
+  [S.tests, S.demos, S.plan] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList("")]);
   $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");
   render();
 })();
