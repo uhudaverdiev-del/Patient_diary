@@ -99,9 +99,9 @@ def local_answer(question, plan, wiki):
         lines = [f"{i + 1}. {_item_line(it)}" for i, it in enumerate(chosen)]
         sources = []
         for it in chosen:
-            title = ("Приказ № 404н, приложение 2 (онкоскрининг)" if "прил." in it["source"]["clause"]
-                     else "Приказ Минздрава № 404н (профосмотр и диспансеризация)")
-            src = {"title": title, "url": it["source"]["url"]}
+            src_title = ("Приказ № 404н, приложение 2 (онкоскрининг)" if "прил." in it["source"]["clause"]
+                         else "Приказ Минздрава № 404н (профосмотр и диспансеризация)")
+            src = {"title": src_title, "url": it["source"]["url"]}
             if src not in sources:
                 sources.append(src)
         return {"answer": title + "\n" + "\n".join(lines), "sources": sources}
