@@ -2,271 +2,577 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Дневник здоровья</title>
+<script>
+  // Тема и крупный шрифт ставим до отрисовки, чтобы страница не мигала.
+  try {
+    const t = localStorage.getItem("theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    if (localStorage.getItem("bigfont") === "1") document.documentElement.dataset.big = "1";
+  } catch (e) {}
+</script>
 <style>
+  /* Шрифты лежат рядом, в web/fonts: никаких запросов к Google. Лицензия SIL OFL, тексты там же. */
+  @font-face { font-family: "Golos Text"; src: url(/fonts/golos-cyrillic.woff2) format("woff2"); font-weight: 400 700; font-display: swap;
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: "Golos Text"; src: url(/fonts/golos-latin.woff2) format("woff2"); font-weight: 400 700; font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Unbounded"; src: url(/fonts/unbounded-cyrillic.woff2) format("woff2"); font-weight: 500 700; font-display: swap;
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: "Unbounded"; src: url(/fonts/unbounded-latin.woff2) format("woff2"); font-weight: 500 700; font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+  /* Палитра «Рассвет»: светлое утреннее небо, тёплое солнце, спокойный синий для действий. */
   :root {
-    --bg: #f5f7f9; --card: #ffffff; --text: #1d2730; --muted: #5d6b78; --line: #e1e6eb;
-    --accent: #1f6feb; --accent-soft: #e8f0fd;
-    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea; --nd: #5d6b78; --nd-soft: #eceff2;
+    color-scheme: light;
+    --bg: #F3F6FB; --surface: #FFFFFF; --surface-2: #EAF0F8;
+    --ink: #16233F; --muted: #5E6C84; --line: #DCE3EE;
+    --action: #2B59C3; --action-ink: #FFFFFF; --action-soft: #E3EBFA;
+    --sun: #F4A31B; --sun-core: #FFE2A3; --sun-ink: #7A4D00;
+    --overdue: #C8433A; --overdue-soft: #FBE9E7;
+    --soon: #A35E00; --soon-soft: #FDF0DC;
+    --ok: #23805A; --ok-soft: #E2F2EA;
+    --nd: #627189; --nd-soft: #ECEFF4;
+    --ray-off: #DCE3EE;
+    --shadow: 0 1px 2px rgba(22, 35, 63, .06), 0 8px 24px rgba(22, 35, 63, .06);
+    --backdrop: rgba(15, 23, 41, .45);
+    --skin: #F1C9A5; --hair: #8C8F99; --coat: #FFFFFF;
+    --r-lg: 20px; --r: 12px;
+    --side: 248px;
+    interpolate-size: allow-keywords;
   }
+  /* Палитра «Ночное небо»: тёмная тема, по системе или по выбору в профиле. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0F1729; --surface: #18223A; --surface-2: #212D49;
+      --ink: #E9EEF7; --muted: #A3B0C6; --line: #2B3856;
+      --action: #7FA2F5; --action-ink: #0F1729; --action-soft: #22335C;
+      --sun: #F6B13A; --sun-core: #FFD27A; --sun-ink: #5A3800;
+      --overdue: #F07B70; --overdue-soft: #3A1F27;
+      --soon: #F1B259; --soon-soft: #3A2C17;
+      --ok: #5CC79A; --ok-soft: #173326;
+      --nd: #9AA8BF; --nd-soft: #232F47;
+      --ray-off: #2B3856;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+      --backdrop: rgba(5, 9, 18, .65);
+      --coat: #E9EEF7;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0F1729; --surface: #18223A; --surface-2: #212D49;
+    --ink: #E9EEF7; --muted: #A3B0C6; --line: #2B3856;
+    --action: #7FA2F5; --action-ink: #0F1729; --action-soft: #22335C;
+    --sun: #F6B13A; --sun-core: #FFD27A; --sun-ink: #5A3800;
+    --overdue: #F07B70; --overdue-soft: #3A1F27;
+    --soon: #F1B259; --soon-soft: #3A2C17;
+    --ok: #5CC79A; --ok-soft: #173326;
+    --nd: #9AA8BF; --nd-soft: #232F47;
+    --ray-off: #2B3856;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    --backdrop: rgba(5, 9, 18, .65);
+    --coat: #E9EEF7;
+  }
+  html { font-size: 106.25%; } /* 17px */
+  html[data-big="1"] { font-size: 118.75%; } /* 19px */
+
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
-  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-  .bar { max-width: 1080px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .logo { font-weight: 700; font-size: 18px; margin-right: auto; }
-  .logo span { color: var(--accent); }
-  nav { max-width: 1080px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
-  nav button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 12px; font: inherit; color: var(--muted); cursor: pointer; white-space: nowrap; }
-  nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 18px; margin: 24px 0 10px; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font-family: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 1rem; line-height: 1.5; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  a { color: var(--action); text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--action); outline-offset: 2px; border-radius: 6px; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2rem 0 .75rem; }
+  h3 { font-size: 1.06rem; font-weight: 600; }
+  p { margin: .5rem 0; }
   .muted { color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-  .grid { display: grid; gap: 12px; }
-  .tiles { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 16px; }
-  .tile { border-radius: 12px; padding: 14px 16px; }
-  .tile b { display: block; font-size: 28px; line-height: 1.2; }
-  .tile.overdue { background: var(--bad-soft); color: var(--bad); }
-  .tile.soon { background: var(--soon-soft); color: var(--soon); }
-  .tile.actual { background: var(--ok-soft); color: var(--ok); }
-  .tile.no_data { background: var(--nd-soft); color: var(--nd); }
-  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-  .pill.overdue { background: var(--bad-soft); color: var(--bad); }
+  .small { font-size: .88rem; }
+  .lead { color: var(--muted); max-width: 62ch; margin-top: .4rem; }
+  .display { font-family: "Unbounded", "Golos Text", sans-serif; font-weight: 600; letter-spacing: -.02em; }
+
+  /* Каркас: слева меню на компьютере, снизу панель на телефоне. */
+  .app { min-height: 100vh; }
+  .side { position: fixed; inset: 0 auto 0 0; width: var(--side); padding: 22px 16px; display: flex; flex-direction: column; gap: 4px;
+    background: var(--surface); border-right: 1px solid var(--line); z-index: 10; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 18px; font-weight: 700; font-size: 1.06rem; color: var(--ink); text-decoration: none; }
+  .brand .sun, .brand .sun svg { width: 32px; height: 32px; flex: none; }
+  .nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 12px; border: 0; border-radius: var(--r);
+    background: none; color: var(--muted); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+  .nav-btn svg { width: 22px; height: 22px; flex: none; }
+  .nav-btn:hover { background: var(--surface-2); color: var(--ink); }
+  .nav-btn[aria-current="page"] { background: var(--action-soft); color: var(--action); font-weight: 600; }
+  .side .ai-btn { margin-top: 14px; border: 1px solid var(--line); color: var(--ink); }
+  .side .ai-btn .avatar { width: 34px; height: 34px; margin-left: -4px; }
+  .side-sun { margin: 18px 4px 0; padding: 14px; border-radius: var(--r); background: var(--surface-2); display: flex; gap: 12px; align-items: center;
+    font-size: .88rem; color: var(--muted); border: 0; font-family: inherit; text-align: left; cursor: pointer; }
+  .side-sun .sun, .side-sun svg { width: 46px; height: 46px; flex: none; overflow: visible; }
+  .side-sun b { display: block; color: var(--ink); font-size: 1rem; }
+  .side-foot { margin-top: auto; display: grid; gap: 4px; }
+  .me { display: flex; align-items: center; gap: 10px; }
+  .initial { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sun-core); color: var(--sun-ink); font-weight: 700; flex: none; }
+  .wrap { margin-left: var(--side); }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 32px 64px; }
+  .topbar { display: none; }
+  .tabbar { display: none; }
+  footer { max-width: 980px; margin: 0 auto; padding: 0 32px 40px; font-size: .82rem; color: var(--muted); }
+  footer p { max-width: 80ch; }
+
+  /* Кнопки: высота 48px, одна главная кнопка на карточку. */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: var(--r);
+    border: 1px solid transparent; background: var(--action); color: var(--action-ink); font: inherit; font-weight: 600; line-height: 1.2;
+    text-decoration: none; cursor: pointer; transition: transform .12s ease, background-color .15s; text-align: center; }
+  .btn:active { transform: scale(.98); }
+  .btn.ghost { background: var(--action-soft); color: var(--action); }
+  .btn.quiet { background: transparent; color: var(--action); border-color: var(--line); }
+  .btn.danger { background: var(--overdue-soft); color: var(--overdue); }
+  .btn.sm { min-height: 40px; padding: 0 14px; font-size: .94rem; }
+  .linkbtn { background: none; border: 0; padding: 4px 0; color: var(--action); font: inherit; font-size: .94rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .linkbtn.muted { color: var(--muted); }
+  .linkbtn.danger { color: var(--overdue); }
+  .row-btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; }
+  .stack { display: grid; gap: 12px; }
+  .banner { border-radius: var(--r); padding: 14px 16px; margin: 14px 0; background: var(--soon-soft); color: var(--ink); border-left: 4px solid var(--soon); }
+  .banner.block { background: var(--overdue-soft); border-left-color: var(--overdue); }
+  .note-box { font-size: .88rem; color: var(--muted); background: var(--surface-2); border-radius: var(--r); padding: 12px 14px; }
+
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+  .pill.overdue { background: var(--overdue-soft); color: var(--overdue); }
   .pill.soon { background: var(--soon-soft); color: var(--soon); }
   .pill.actual { background: var(--ok-soft); color: var(--ok); }
   .pill.no_data { background: var(--nd-soft); color: var(--nd); }
-  .item { display: grid; grid-template-columns: 6px 1fr auto; gap: 14px; padding: 14px 16px; }
-  .item::before { content: ""; border-radius: 3px; background: var(--ok); }
-  .item.overdue::before { background: var(--bad); }
-  .item.soon::before { background: var(--soon); }
-  .item.no_data::before { background: #b7c0c8; }
-  .item.no_data .note { color: var(--muted); }
-  .risk { border-left: 4px solid var(--soon); margin-top: 16px; }
-  .risk h3 { margin: 0 0 4px; font-size: 16px; }
-  details.group > summary { cursor: pointer; font-size: 18px; font-weight: 700; margin: 24px 0 10px; }
-  details.group > summary span { font-size: 14px; font-weight: 400; color: var(--accent); margin-left: 6px; }
-  .item h3 { margin: 0 0 2px; font-size: 16px; }
-  .item .dates { margin: 6px 0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
-  .item .note { font-size: 14px; color: var(--soon); margin: 4px 0 0; }
-  .item .src { font-size: 13px; }
-  .actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-  button.btn, a.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
-  button.btn.ghost, a.btn.ghost { background: var(--accent-soft); color: var(--accent); }
-  button.btn.danger { background: var(--bad-soft); color: var(--bad); }
-  .banner { border-radius: 10px; padding: 12px 14px; margin: 12px 0; background: var(--soon-soft); color: #5a3a00; }
-  .banner.block { background: var(--bad-soft); color: #6d1414; }
-  .cal { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
-  .month h3 { margin: 0 0 8px; font-size: 15px; }
-  .month.now { border-color: var(--accent); }
-  .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
-  .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
-  .chip.no_data { border-color: #b7c0c8; background: var(--nd-soft); }
-  .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 400; color: var(--muted); margin: 4px 0 12px; }
-  .consent input { width: auto; margin-top: 3px; flex: none; }
-  .privacy-note { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
-  .demos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .demo-card { text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
-  .demo-card:hover { border-color: var(--accent); }
-  .demo-card .muted { font-size: 13px; }
-  .reminders ul { margin: 0; padding-left: 18px; }
-  .reminders li { margin: 4px 0; }
-  .reminders li.overdue::marker { color: var(--bad); }
-  .reminders li.soon::marker { color: var(--soon); }
-  .reminders li.no_data::marker { color: var(--nd); }
-  #mAlso { display: none; }
-  #mAlso.show { display: grid; }
-  #mAlso .checks { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-  .reminders li a { font-size: 13px; margin-left: 6px; }
-  .chip.soon { border-color: var(--soon); background: var(--soon-soft); }
-  .chip small { display: block; color: var(--muted); }
-  form .row { display: grid; gap: 6px; margin-bottom: 14px; }
-  label { font-weight: 600; font-size: 14px; }
-  input, select, textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; width: 100%; }
-  .checks label { font-weight: 400; display: flex; gap: 8px; align-items: center; }
-  .checks input { width: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
-  dialog { border: 0; border-radius: 14px; padding: 0; width: min(520px, calc(100vw - 32px)); }
-  dialog::backdrop { background: rgba(20,30,40,.4); }
-  dialog .card { border: 0; }
-  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d2730; color: #fff; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
-  .toast.show { opacity: 1; }
-  .placeholder { text-align: center; padding: 40px 16px; }
-  .wiki-card { display: grid; gap: 4px; color: inherit; text-decoration: none; font-size: 14px; }
-  .wiki-card:hover { border-color: var(--accent); }
-  .wiki-card b { font-size: 15px; }
-  .md h2 { margin-top: 20px; }
-  .md p, .md li { max-width: 68ch; }
-  .md table { margin: 8px 0; max-width: 480px; }
-  ol.src li { margin: 4px 0; font-size: 14px; }
-  .chat #chatLog { display: grid; gap: 10px; margin-bottom: 12px; }
-  .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 15px; }
-  .msg.user { justify-self: end; background: var(--accent); color: #fff; }
-  .msg.bot { justify-self: start; background: var(--bg); border: 1px solid var(--line); }
-  .msg-src { margin-top: 8px; font-size: 13px; }
-  .msg-mode { margin-top: 4px; font-size: 12px; color: var(--muted); }
-  .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .quick .btn, [data-ask].btn { white-space: normal; text-align: left; font-weight: 500; }
-  .ask { display: flex; gap: 8px; }
-  @media (max-width: 640px) { .msg { max-width: 100%; } }
-  .metrics { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin-top: 16px; }
-  .metric .big { font-size: 26px; font-weight: 700; }
-  .metric .big small { font-size: 14px; font-weight: 400; color: var(--muted); }
-  .metric .flag { font-size: 14px; margin: 4px 0 8px; }
-  .metric .flag.high { color: var(--bad); }
+  .ico { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .ico svg { width: 20px; height: 20px; }
+  .ico.overdue { background: var(--overdue-soft); color: var(--overdue); }
+  .ico.soon { background: var(--soon-soft); color: var(--soon); }
+  .ico.actual { background: var(--ok-soft); color: var(--ok); }
+  .ico.no_data { background: var(--nd-soft); color: var(--nd); }
+
+  /* Сегодня: солнце и один главный шаг. */
+  .greet { font-size: 2rem; }
+  .hero { display: grid; grid-template-columns: 300px 1fr; gap: 28px; align-items: center; margin-top: 24px; }
+  .sun { position: relative; }
+  .sun svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .sun .ray line { stroke-linecap: round; }
+  .sun .ray .vis { stroke: var(--ray-off); transition: stroke .3s; }
+  .sun .ray.lit .vis { stroke: var(--sun); }
+  .sun .ray.off { cursor: pointer; }
+  .sun .ray.off:hover .vis { stroke: color-mix(in srgb, var(--sun) 45%, var(--ray-off)); }
+  .sun .ray .hit { stroke: transparent; }
+  .sun .core { fill: var(--sun-core); }
+  .sun .sun-num { font-family: "Unbounded", sans-serif; font-weight: 700; fill: var(--sun-ink); }
+  .sun .sun-sub { fill: var(--sun-ink); font-size: 11px; }
+  .sun.done .core { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--sun) 70%, transparent)); animation: glow 2.6s ease-in-out infinite alternate; }
+  @keyframes glow { to { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--sun) 40%, transparent)); } }
+  .sun.rise .disc { animation: rise 1s cubic-bezier(.2, .8, .2, 1) both; }
+  .sun.rise .ray .vis { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .45s ease-out forwards; animation-delay: calc(.55s + var(--i) * 60ms); }
+  @keyframes rise { from { transform: translateY(26px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .ray.ignite .vis { animation: ignite 1.4s ease-out 2; }
+  @keyframes ignite { 0% { stroke: #fff6dc; filter: drop-shadow(0 0 0 var(--sun)); } 40% { filter: drop-shadow(0 0 8px var(--sun)); } 100% { stroke: var(--sun); filter: none; } }
+  .step { padding: 28px; display: grid; gap: 12px; align-content: start; }
+  .step h2 { margin: 0; font-size: 1.6rem; }
+  .step .why { color: var(--muted); max-width: 52ch; margin: 0; }
+  .step .row-btns { margin-top: 8px; }
+  .step .linkbtn { justify-self: start; }
+  .eyebrow { color: var(--sun-ink); background: var(--sun-core); border-radius: 999px; padding: 3px 12px; font-size: .82rem; font-weight: 600; justify-self: start; }
+  .next { padding: 6px; }
+  .next-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; padding: 12px 14px;
+    border: 0; border-radius: var(--r); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .next-row:hover { background: var(--surface-2); }
+  .next-row + .next-row { border-top: 1px solid var(--line); border-radius: 0; }
+  .next-row b { font-weight: 600; display: block; }
+  .next-row .when { font-size: .88rem; color: var(--muted); }
+  .chev { width: 20px; height: 20px; color: var(--muted); }
+  .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tool { display: grid; gap: 4px; align-content: start; text-decoration: none; color: inherit; }
+  .tool b { color: var(--action); }
+  .tool:hover { border-color: var(--action); }
+  .risk { border-left: 4px solid var(--soon); margin-top: 12px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip-q { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font: inherit; font-size: .94rem; cursor: pointer; text-align: left; }
+  .chip-q:hover { border-color: var(--action); color: var(--action); }
+  .ask-card { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+  .ask-card .avatar { width: 64px; height: 64px; }
+
+  /* План: строки раскрываются на месте. */
+  .head-row { display: flex; gap: 12px 16px; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
+  .seg { display: inline-flex; padding: 4px; gap: 4px; background: var(--surface-2); border-radius: 14px; }
+  .seg button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+  details.it + details.it { border-top: 1px solid var(--line); }
+  details.it > summary { list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 18px; cursor: pointer; }
+  details.it > summary::-webkit-details-marker { display: none; }
+  details.it > summary:hover { background: var(--surface-2); }
+  details.it .sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 3px; font-size: .88rem; color: var(--muted); }
+  details.it .chev { transition: transform .2s; }
+  details.it[open] .chev { transform: rotate(90deg); }
+  details.it::details-content { block-size: 0; overflow: hidden; transition: block-size .28s ease, content-visibility .28s allow-discrete; }
+  details.it[open]::details-content { block-size: auto; }
+  .it-body { padding: 2px 18px 20px 68px; display: grid; gap: 10px; }
+  .it-body .dates { display: flex; gap: 28px; flex-wrap: wrap; }
+  .it-body .dates span { display: block; font-size: .82rem; color: var(--muted); }
+  .it-body .note { color: var(--soon); margin: 0; }
+  .it-body .src { font-size: .88rem; color: var(--muted); }
+  .it-links { display: flex; gap: 6px 20px; flex-wrap: wrap; }
+  .it.flash > summary { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: var(--action-soft); } }
+  details.group { margin-top: 2rem; }
+  details.group > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; margin-bottom: .75rem; }
+  details.group > summary::-webkit-details-marker { display: none; }
+  details.group > summary h2 { margin: 0; display: inline; }
+  details.group > summary .linkbtn { pointer-events: none; }
+  .cal { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 20px; }
+  .month { padding: 16px; }
+  .month h3 { margin-bottom: 8px; font-size: 1rem; }
+  .month.now { border-color: var(--action); }
+  .cal-chip { display: block; width: 100%; border: 0; border-left: 4px solid var(--ok); background: var(--ok-soft); border-radius: 8px; padding: 6px 10px; margin: 6px 0;
+    font: inherit; font-size: .88rem; color: var(--ink); text-align: left; cursor: pointer; }
+  .cal-chip small { display: block; color: var(--muted); }
+  .cal-chip.overdue { border-color: var(--overdue); background: var(--overdue-soft); }
+  .cal-chip.soon { border-color: var(--soon); background: var(--soon-soft); }
+  .cal-chip.no_data { border-color: var(--nd); background: var(--nd-soft); }
+
+  /* Дневник */
+  .rec { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 14px 18px; }
+  .rec + .rec { border-top: 1px solid var(--line); }
+  .rec .d { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rec .acts { display: flex; gap: 14px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; margin-top: 16px; }
+  .metric .big { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .metric .big small { font-size: .88rem; font-weight: 400; color: var(--muted); }
+  .metric .flag { font-size: .88rem; margin: 4px 0 8px; }
+  .metric .flag.high { color: var(--overdue); }
   .metric .flag.ok { color: var(--ok); }
   .metric svg { width: 100%; height: 130px; display: block; }
   .metric svg .grid-line { stroke: var(--line); }
-  .metric svg .limit { stroke: var(--bad); stroke-dasharray: 4 4; opacity: .6; }
-  .metric svg .line1 { stroke: var(--accent); fill: none; stroke-width: 2.5; }
-  .metric svg .line2 { stroke: #7aa7f0; fill: none; stroke-width: 2.5; }
+  .metric svg .limit { stroke: var(--overdue); stroke-dasharray: 4 4; opacity: .6; }
+  .metric svg .line1 { stroke: var(--action); fill: none; stroke-width: 2.5; }
+  .metric svg .line2 { stroke: var(--sun); fill: none; stroke-width: 2.5; }
+  .metric svg circle { fill: var(--surface); }
   .metric svg text { font-size: 10px; fill: var(--muted); }
-  .metric details { font-size: 14px; margin-top: 6px; }
-  .metric details li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 2px 0; }
+  .metric details { font-size: .88rem; margin-top: 6px; }
   .metric details ul { list-style: none; padding: 0; margin: 6px 0 0; }
-  .linkbtn { background: none; border: 0; color: var(--bad); cursor: pointer; font: inherit; font-size: 13px; }
-  .metric-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
-  .metric-form label { font-size: 13px; }
-  .home-top { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 12px; margin-top: 16px; align-items: start; }
-  .home-top .tiles { margin-top: 0; grid-template-columns: repeat(2, 1fr); }
-  .sun { text-align: center; }
-  .sun svg { width: 210px; height: 210px; display: block; margin: 0 auto; overflow: visible; }
-  .sun .ray line { stroke: #d5dbe1; stroke-linecap: round; transition: stroke .3s; }
-  .sun .ray.lit line { stroke: #f5a623; }
-  .sun .ray.off { cursor: pointer; }
-  .sun .ray.off:hover line { stroke: #f8c66d; }
-  .sun .ray .hit { stroke: transparent; }
-  .sun .core { fill: #ffe39a; }
-  .sun .core-num { font-size: 26px; font-weight: 700; fill: #8a5a00; }
-  .sun .core-sub { font-size: 12px; fill: #8a5a00; }
-  .sun.done svg { filter: drop-shadow(0 0 14px rgba(245,166,35,.75)); animation: sunglow 2.4s ease-in-out infinite alternate; }
-  @keyframes sunglow { to { filter: drop-shadow(0 0 4px rgba(245,166,35,.4)); } }
-  @media (prefers-reduced-motion: reduce) { .sun.done svg { animation: none; } }
-  .sun ul { text-align: left; margin: 8px 0 0; padding-left: 18px; font-size: 14px; }
-  .sun li { margin: 3px 0; }
-  @media (max-width: 640px) { .home-top { grid-template-columns: 1fr; } }
-  footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
-  @media (max-width: 640px) {
-    .item { grid-template-columns: 6px minmax(0, 1fr); }
-    .actions { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .metric details li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 2px 0; }
+  .metric-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; margin-top: 16px; }
+
+  /* Справка */
+  .search { max-width: 560px; margin: 20px 0 4px; }
+  .wiki-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .wiki-card { display: grid; gap: 6px; align-content: start; text-decoration: none; color: inherit; padding: 18px; }
+  .wiki-card:hover { border-color: var(--action); }
+  .wiki-card b { font-size: 1rem; }
+  .wiki-card span { font-size: .88rem; color: var(--muted); }
+  .md { max-width: 720px; padding: 28px; }
+  .md h1 { margin: 6px 0 12px; }
+  .md p, .md li { max-width: 68ch; }
+  .md table { border-collapse: collapse; margin: 8px 0; }
+  .md th, .md td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); font-size: .94rem; }
+  ol.src li { margin: 4px 0; font-size: .88rem; }
+
+  /* Формы */
+  form .field { display: grid; gap: 6px; margin-bottom: 16px; }
+  label, .label { font-weight: 600; font-size: .94rem; }
+  input, select, textarea { font: inherit; padding: 11px 14px; min-height: 48px; border: 1px solid var(--line); border-radius: var(--r);
+    background: var(--surface); color: var(--ink); width: 100%; }
+  textarea { min-height: auto; }
+  input:focus, select:focus, textarea:focus { outline: 3px solid var(--action-soft); border-color: var(--action); }
+  .checks { display: grid; gap: 8px; }
+  .checks label { font-weight: 400; display: flex; gap: 10px; align-items: flex-start; }
+  .checks input, .consent input, .switch input { width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; flex: none; accent-color: var(--action); }
+  .consent { display: flex; gap: 10px; align-items: flex-start; font-size: .88rem; font-weight: 400; color: var(--muted); margin: 4px 0 16px; }
+  .narrow { max-width: 560px; }
+  .switch { display: flex; gap: 12px; align-items: center; font-weight: 500; }
+  .big-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .big-choice button { min-height: 72px; font-size: 1.12rem; }
+
+  /* Онбординг */
+  .onb { max-width: 560px; margin: 24px auto 0; text-align: left; }
+  .onb .mini-sun { width: 96px; margin: 0 0 12px; }
+  .onb h1 { font-size: 1.8rem; }
+  .onb .card { margin-top: 20px; padding: 24px; }
+  .onb-step { font-size: .88rem; color: var(--muted); }
+
+  /* AIbert */
+  .avatar { display: block; border-radius: 50%; flex: none; }
+  .wordmark { font-family: "Unbounded", sans-serif; font-weight: 600; letter-spacing: -.01em; }
+  .wordmark .a { color: var(--action); }
+  dialog { border: 0; padding: 0; background: var(--surface); color: var(--ink); border-radius: var(--r-lg); width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+  dialog::backdrop { background: var(--backdrop); }
+  dialog[open] { animation: pop .22s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(12px); } }
+  dialog .sheet { padding: 24px; }
+  dialog h2 { margin: 0 0 16px; }
+  .sheet-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  #aiDialog { margin: 0 0 0 auto; height: 100vh; max-height: 100vh; width: min(420px, 100vw); border-radius: var(--r-lg) 0 0 var(--r-lg); }
+  #aiDialog[open] { display: flex; flex-direction: column; animation: slide .28s cubic-bezier(.2, .8, .2, 1); }
+  @keyframes slide { from { transform: translateX(40px); opacity: 0; } }
+  .ai-head { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+  .ai-head .avatar { width: 52px; height: 52px; }
+  .ai-head .wordmark { font-size: 1.3rem; }
+  .ai-head p { margin: 2px 0 0; font-size: .82rem; color: var(--muted); }
+  .close { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--ink); cursor: pointer; display: grid; place-items: center; }
+  .close svg { width: 20px; height: 20px; }
+  #chatLog { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 88%; padding: 12px 14px; border-radius: 16px; font-size: .97rem; }
+  .msg.user { align-self: flex-end; background: var(--action); color: var(--action-ink); border-bottom-right-radius: 6px; }
+  .msg.bot { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 6px; }
+  .msg-src { margin-top: 8px; font-size: .82rem; }
+  .msg-mode { margin-top: 6px; font-size: .76rem; color: var(--muted); }
+  .typing { display: inline-flex; gap: 5px; align-items: center; padding: 4px 0; }
+  .typing i { width: 4px; height: 14px; border-radius: 2px; background: var(--sun); animation: typing 1s ease-in-out infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes typing { 0%, 100% { opacity: .3; transform: scaleY(.6); } 50% { opacity: 1; transform: none; } }
+  .ai-foot { border-top: 1px solid var(--line); padding: 12px 18px 18px; display: grid; gap: 10px; }
+  .ai-foot .chips { max-height: 132px; overflow-y: auto; }
+  .ask { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .ai-privacy { font-size: .76rem; color: var(--muted); }
+  .ai-privacy summary { cursor: pointer; }
+
+  /* Режим показа */
+  .demo-banner { background: var(--sun-core); color: var(--sun-ink); }
+  .demo-banner .in { max-width: 980px; margin: 0 auto; padding: 10px 32px; display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; font-weight: 500; }
+  .demo-banner .linkbtn { color: var(--sun-ink); }
+  .demos { display: grid; gap: 8px; margin: 12px 0 16px; }
+  .demo-card { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+  .demo-card:hover { border-color: var(--action); }
+  .demo-card span { font-size: .88rem; color: var(--muted); }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 12px); background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: var(--r);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 50; max-width: calc(100vw - 32px); font-weight: 500; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* Телефон и планшет */
+  @media (max-width: 900px) {
+    .side { display: none; }
+    .wrap { margin-left: 0; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    main { padding: 16px 16px 40px; }
+    footer { padding: 0 16px 24px; }
+    .demo-banner .in { padding: 10px 16px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 8; }
+    .topbar .brand { padding: 0; font-size: 1rem; }
+    .topbar .me-btn { min-height: 44px; display: flex; gap: 8px; align-items: center; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; }
+    .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; inset: auto 0 0 0; z-index: 9; background: var(--surface); border-top: 1px solid var(--line);
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+    .tabbar button { display: grid; justify-items: center; gap: 2px; min-height: 56px; padding: 6px 0 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: .72rem; font-weight: 500; cursor: pointer; }
+    .tabbar button svg { width: 24px; height: 24px; }
+    .tabbar button[aria-current="page"] { color: var(--action); font-weight: 600; }
+    .tabbar .ai-tab { margin-top: -22px; }
+    .tabbar .ai-tab .avatar { width: 58px; height: 58px; border: 3px solid var(--surface); box-shadow: 0 4px 14px rgba(22, 35, 63, .18); }
+    .hero { grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+    .hero .sun { width: min(200px, 56vw); margin: 0 auto; }
+    .greet { font-size: 1.6rem; }
+    .step { padding: 20px; }
+    .step h2 { font-size: 1.35rem; }
+    .step .row-btns .btn { flex: 1 1 auto; }
+    .tools { grid-template-columns: 1fr; }
+    .it-body { padding: 2px 16px 18px; }
+    details.it > summary { padding: 14px 16px; }
+    .rec { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .md { padding: 20px; }
+    dialog:not(#aiDialog) { margin: auto 0 0; width: 100vw; max-width: 100vw; border-radius: var(--r-lg) var(--r-lg) 0 0; max-height: 92vh; }
+    dialog:not(#aiDialog)[open] { animation: up .26s cubic-bezier(.2, .8, .2, 1); }
+    @keyframes up { from { transform: translateY(40px); opacity: 0; } }
+    #aiDialog { width: 100vw; border-radius: 0; }
+    .ai-head { padding: 12px 14px; }
+    .ai-head .avatar { width: 44px; height: 44px; }
+    .ai-head p { font-size: .76rem; }
+    #aiDialog .chips { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding-bottom: 2px; }
+    #aiDialog .chip-q { flex: none; white-space: nowrap; }
+    .sheet-actions .btn { flex: 1 1 auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    .sun.rise .ray .vis { stroke-dashoffset: 0; }
   }
 </style>
 </head>
 <body>
-<header>
-  <div class="bar">
-    <div class="logo">Дневник <span>здоровья</span></div>
-    <label for="demo" class="muted" style="font-weight:400">Демо-пациент:</label>
-    <select id="demo" style="width:auto"></select>
-    <button class="btn" id="markBtn">+ Отметить прохождение</button>
+<div class="app">
+  <aside class="side" aria-label="Разделы">
+    <a class="brand" href="#" data-tab="home"><span id="brandSun"></span>Дневник здоровья</a>
+    <nav class="stack" style="gap:4px" id="sideNav"></nav>
+    <button class="nav-btn ai-btn" data-ai><span class="avatar-slot"></span><span class="wordmark"><span class="a">AI</span>bert</span></button>
+    <button class="side-sun" id="sideSun" data-tab="home" hidden></button>
+    <div class="side-foot">
+      <button class="nav-btn" data-tab="profile" id="sideMe"></button>
+      <button class="nav-btn" data-demo-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Режим показа</button>
+    </div>
+  </aside>
+
+  <div class="wrap">
+    <div class="topbar">
+      <a class="brand" href="#" data-tab="home"><span id="brandSunM"></span>Дневник здоровья</a>
+      <button class="me-btn" data-tab="profile" id="topMe"></button>
+    </div>
+    <div id="demoBanner"></div>
+    <main id="view" tabindex="-1"></main>
+    <footer>
+      <p>План строится по приказам Минздрава России от 27.04.2021 № 404н (обследования) и от 06.12.2021 № 1122н (прививки). Сервис не заменяет консультацию врача.
+        <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a>.</p>
+    </footer>
   </div>
-  <nav id="tabs">
-    <button data-tab="home" class="active">Главная</button>
-    <button data-tab="assistant">Ассистент</button>
-    <button data-tab="plan">Мой план</button>
-    <button data-tab="calendar">Календарь</button>
-    <button data-tab="history">Пройдено</button>
-    <button data-tab="metrics">Показатели</button>
-    <button data-tab="profile">Профиль</button>
-    <button data-tab="wiki">Здоровье / Wiki</button>
-  </nav>
-</header>
 
-<main id="view"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>
+</div>
 
-<footer>
-  План строится по приказам Минздрава России от 27.04.2021 № 404н (обследования) и от 06.12.2021 № 1122н (прививки). Сервис не заменяет консультацию врача.
-  <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a>.
-  Дата расчёта: <input type="date" id="today" style="width:auto;padding:2px 6px"> <span id="todayHint"></span>
-</footer>
+<dialog id="aiDialog" aria-label="AIbert">
+  <div class="ai-head">
+    <span class="avatar-slot"></span>
+    <div><div class="wordmark"><span class="a">AI</span>bert</div>
+      <p>Отвечаю по вашему плану и приказам Минздрава, со ссылкой на источник. Диагнозы не ставлю: это делает врач.</p></div>
+    <button class="close" data-close aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="chatLog" aria-live="polite"></div>
+  <div class="ai-foot">
+    <div class="chips" id="aiChips"></div>
+    <form id="askForm" class="ask"><input id="askInput" placeholder="Ваш вопрос" autocomplete="off" aria-label="Ваш вопрос"><button class="btn" type="submit">Спросить</button></form>
+    <details class="ai-privacy" id="aiPrivacy"></details>
+  </div>
+</dialog>
 
 <dialog id="markDialog">
-  <form class="card" id="markForm" method="dialog">
-    <h2 style="margin-top:0">Отметить обследование или прививку</h2>
-    <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
-    <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
-    <div class="row" id="mAlso"><label>Что из этого вам сделали в тот же день</label>
-      <div class="muted" style="font-size:13px">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
-      <div class="checks" id="mAlsoList"></div></div>
-    <div class="row"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
-    <div class="row" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button type="button" class="btn ghost" id="mCancel">Отмена</button>
+  <form class="sheet" id="markForm" method="dialog">
+    <h2>Отметить пройденным</h2>
+    <div class="field"><label for="mTest">Обследование или прививка</label><select id="mTest" required></select></div>
+    <div class="field"><label for="mDate">Дата</label><input type="date" id="mDate" required></div>
+    <div class="field" id="mAlso" hidden><span class="label">Что из этого вам сделали в тот же день</span>
+      <div class="muted small">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
+      <div class="checks" id="mAlsoList" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px"></div></div>
+    <div class="field"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
+    <div class="field" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn quiet" id="mCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
     </div>
   </form>
 </dialog>
 <dialog id="letterDialog">
-  <form class="card" id="letterForm">
-    <h2 style="margin-top:0">Заявление, если отказали</h2>
-    <div class="muted" style="font-size:14px;margin-bottom:12px" id="lTitle"></div>
-    <div class="row"><label for="lReason">Что произошло</label><select id="lReason">
+  <form class="sheet" id="letterForm">
+    <h2>Заявление, если отказали</h2>
+    <div class="muted" style="margin:-8px 0 16px" id="lTitle"></div>
+    <div class="field"><label for="lReason">Что произошло</label><select id="lReason">
       <option value="no_ticket">Не дали талон, не записали</option>
       <option value="paid">Предложили платно или направили в платное отделение</option>
       <option value="not_entitled">Сказали, что мне это не положено</option>
       <option value="other">Другое</option></select></div>
-    <div class="row"><label for="lDate">Когда это было</label><input type="date" id="lDate" required></div>
-    <div class="row checks"><label>Кому написать</label>
+    <div class="field"><label for="lDate">Когда это было</label><input type="date" id="lDate" required></div>
+    <div class="field checks"><span class="label">Кому написать</span>
       <label><input type="radio" name="lTo" value="chief" checked> Главному врачу поликлиники: обычно начинают с него</label>
       <label><input type="radio" name="lTo" value="smo"> В страховую компанию: её телефон и название есть на полисе ОМС</label></div>
-    <div class="privacy-note" style="margin:0 0 12px">ФИО и номер полиса впишите сами: сервис их не подставляет. Текст письма нигде не сохраняется и никуда не отправляется.</div>
-    <div id="lResult" style="display:none">
-      <textarea id="lText" rows="14" readonly style="font-size:13px"></textarea>
-      <p class="muted" style="font-size:13px">Заявление пишут в двух экземплярах: один отдают, на втором просят поставить отметку о приёме с датой.
+    <div class="note-box" style="margin-bottom:16px">ФИО и номер полиса впишите сами: сервис их не подставляет. Текст письма нигде не сохраняется и никуда не отправляется.</div>
+    <div id="lResult" hidden>
+      <textarea id="lText" rows="12" readonly style="font-size:.88rem"></textarea>
+      <p class="muted small">Заявление пишут в двух экземплярах: один отдают, на втором просят поставить отметку о приёме с датой.
         <a href="#" data-article="clinic_refused">Куда ещё можно обратиться</a></p>
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-      <button type="button" class="btn ghost" id="lClose">Закрыть</button>
-      <button type="button" class="btn ghost" id="lPrint" style="display:none">Распечатать</button>
-      <button type="button" class="btn ghost" id="lCopy" style="display:none">Скопировать</button>
-      <button type="submit" class="btn">Составить текст</button>
+    <div class="sheet-actions">
+      <button type="button" class="btn quiet" id="lClose">Закрыть</button>
+      <button type="button" class="btn ghost" id="lPrint" hidden>Распечатать</button>
+      <button type="button" class="btn ghost" id="lCopy" hidden>Скопировать</button>
+      <button type="submit" class="btn" id="lMake">Составить текст</button>
     </div>
   </form>
 </dialog>
 <dialog id="disputeDialog">
-  <form class="card" id="disputeForm">
-    <h2 style="margin-top:0">Ошибочная запись в выписке ОМС</h2>
-    <div class="row"><label for="dTest">Какая услуга указана</label><select id="dTest" required></select></div>
-    <div class="row"><label for="dDate">Дата в выписке</label><input type="date" id="dDate" required></div>
-    <div class="row"><label for="dComment">Комментарий для себя</label><textarea id="dComment" rows="2" maxlength="500" placeholder="Например: в этот день была в отпуске"></textarea></div>
-    <div class="muted" style="font-size:13px;margin-bottom:12px">Запись хранится только на этом компьютере. В плане она не будет учитываться,
-      а заявление в страховую можно будет составить одной кнопкой.</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button type="button" class="btn ghost" id="dCancel">Отмена</button>
+  <form class="sheet" id="disputeForm">
+    <h2>Ошибочная запись в выписке ОМС</h2>
+    <div class="field"><label for="dTest">Какая услуга указана</label><select id="dTest" required></select></div>
+    <div class="field"><label for="dDate">Дата в выписке</label><input type="date" id="dDate" required></div>
+    <div class="field"><label for="dComment">Комментарий для себя</label><textarea id="dComment" rows="2" maxlength="500" placeholder="Например: в этот день была в отпуске"></textarea></div>
+    <p class="muted small">Запись хранится только на этом компьютере. В плане она не будет учитываться, а заявление в страховую можно будет составить одной кнопкой.</p>
+    <div class="sheet-actions">
+      <button type="button" class="btn quiet" id="dCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
     </div>
   </form>
 </dialog>
 <dialog id="textDialog">
-  <div class="card">
-    <h2 style="margin-top:0" id="tTitle"></h2>
-    <textarea id="tText" rows="14" readonly style="font-size:13px"></textarea>
-    <p class="muted" style="font-size:13px">Впишите ФИО и номер полиса. Отправить заявление можно через сайт или горячую линию страховой: они указаны на полисе ОМС.</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-      <button type="button" class="btn ghost" id="tClose">Закрыть</button>
+  <div class="sheet">
+    <h2 id="tTitle"></h2>
+    <textarea id="tText" rows="12" readonly style="font-size:.88rem"></textarea>
+    <p class="muted small">Впишите ФИО и номер полиса. Отправить заявление можно через сайт или горячую линию страховой: они указаны на полисе ОМС.</p>
+    <div class="sheet-actions">
+      <button type="button" class="btn quiet" id="tClose">Закрыть</button>
       <button type="button" class="btn ghost" id="tPrint">Распечатать</button>
       <button type="button" class="btn" id="tCopy">Скопировать</button>
     </div>
   </div>
 </dialog>
 <dialog id="prepDialog">
-  <div class="card" id="prepBody"></div>
+  <div class="sheet" id="prepBody"></div>
 </dialog>
-<div class="toast" id="toast"></div>
+<dialog id="demoDialog">
+  <div class="sheet">
+    <h2>Режим показа</h2>
+    <p class="muted" style="margin-top:-8px">Вымышленные пациенты для презентации. Выберите, кого показать.</p>
+    <div class="banner block" id="demoWarn" hidden>Демо-пациент заменит ваши данные на этом компьютере: профиль, отметки и файлы. Сначала скачайте их в профиле, если они нужны.</div>
+    <div class="demos" id="demoList"></div>
+    <div class="field"><label for="today">Дата расчёта</label>
+      <input type="date" id="today" style="max-width:240px">
+      <span class="muted small">Пусто: сегодняшняя дата. Удобно, чтобы показать план «как будто» в другой день.</span></div>
+    <div class="sheet-actions"><button type="button" class="btn quiet" data-close>Закрыть</button></div>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
-const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false, llmStatus: [], consent: {} };
-const QUICK = ["Что мне нужно пройти в этом году?", "Какие обследования просрочены?", "Зачем нужна маммография?", "Как получить выходной на работе для диспансеризации?"];
+const S = { plan: null, tests: [], demos: [], tab: "home", mode: { plan: "list", diary: "done" }, chat: [], llm: false, llmStatus: [], consent: {},
+  ignite: new Set(), aiContext: null, ob: { step: 1 } };
+const QUICK = ["Что мне нужно пройти в этом году?", "Какие обследования просрочены?", "Как получить выходной на работе для диспансеризации?", "Зачем нужна маммография?"];
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU") : "—";
 const SEX = { female: "Женский", male: "Мужской" };
 const CONDITIONS = { mastectomy: "Перенесена мастэктомия", hysterectomy: "Перенесена экстирпация (удаление) матки" };
-// Прививки «если не прививались» решает врач по медкарте: в календарь, напоминания и «в первую очередь» не ставим.
+const BUNDLES = ["dispanserization", "profosmotr"];
+// Прививки «если не прививались» решает врач по медкарте: в календарь, напоминания и «главный шаг» не ставим.
 const dueVaccines = (plan) => (plan.vaccines || []).filter((v) => !v.conditional);
 const calendarItems = (plan) => plan.items.concat(dueVaccines(plan));
+const allItems = (plan) => plan.items.concat(plan.vaccines || []);
+const needed = (i) => i.status !== "actual" || i.todo_this_year;
+const rayWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? "луча" : "лучей");
+const firstName = (plan) => (plan.name || "").split(",")[0].trim();
+const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const ICON = {
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><circle cx="12" cy="14" r="2.5"/>',
+  plan: '<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 2v4M16 2v4M8 11h8M8 15h5"/>',
+  diary: '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M5 17a3 3 0 013-3h11"/><path d="M9 8h6"/>',
+  wiki: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".6" fill="currentColor"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  overdue: '<path d="M12 7v6"/><circle cx="12" cy="17" r=".8" fill="currentColor"/>',
+  soon: '<circle cx="12" cy="12" r="7.5"/><path d="M12 8v4l3 2"/>',
+  no_data: '<path d="M9.5 9a2.5 2.5 0 114 2c-1 .7-1.5 1.2-1.5 2.5"/><circle cx="12" cy="17" r=".8" fill="currentColor"/>',
+  actual: '<path d="M6 12.5l4 4 8-9"/>',
+};
+const icon = (name, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+const NAV = [["home", "Сегодня"], ["plan", "План"], ["diary", "Дневник"], ["wiki", "Справка"]];
+
+// AIbert: классический доктор. Цвета берутся из темы.
+function doctorSvg(label) {
+  return `<svg class="avatar" viewBox="0 0 128 128" ${label ? `role="img" aria-label="AIbert"` : `aria-hidden="true"`}>
+    <circle cx="64" cy="64" r="62" style="fill:var(--action-soft)"/>
+    <clipPath id="dc"><circle cx="64" cy="64" r="62"/></clipPath><g clip-path="url(#dc)">
+    <path d="M22 130c4-30 20-44 42-44s38 14 42 44z" style="fill:var(--coat);stroke:var(--line)"/>
+    <path d="M54 86l10 14 10-14" fill="none" style="stroke:var(--action)" stroke-width="3"/>
+    <path d="M46 88c-6 10-4 20 4 24" fill="none" stroke="#16233F" stroke-width="2.5"/><circle cx="51" cy="113" r="4" fill="#16233F"/></g>
+    <rect x="57" y="72" width="14" height="14" rx="5" fill="#F1C9A5"/>
+    <ellipse cx="64" cy="52" rx="22" ry="25" fill="#F1C9A5"/>
+    <path d="M42 50c0-18 10-26 22-26s22 8 22 26c-3-9-8-13-14-14-6 4-16 5-30 14z" fill="#8C8F99"/>
+    <path d="M50 66c4 6 24 6 28 0-2 9-8 13-14 13s-12-4-14-13z" fill="#8C8F99"/>
+    <circle cx="55" cy="52" r="7" fill="none" stroke="#16233F" stroke-width="2.2"/><circle cx="73" cy="52" r="7" fill="none" stroke="#16233F" stroke-width="2.2"/><path d="M62 52h4" stroke="#16233F" stroke-width="2.2"/>
+    <circle cx="55" cy="52" r="1.8" fill="#16233F"/><circle cx="73" cy="52" r="1.8" fill="#16233F"/>
+    <path d="M58 66q6 4 12 0" fill="none" stroke="#16233F" stroke-width="2" stroke-linecap="round"/></svg>`;
+}
 
 function todayParam(path) { const v = $("#today").value; return v ? (path.includes("?") ? "&" : "?") + "today=" + v : ""; }
 
@@ -280,10 +586,49 @@ async function api(method, path, body) {
   return data;
 }
 
+let toastTimer;
 function toast(text) {
   const t = $("#toast"); t.textContent = text; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2200);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
+
+/* ---------- Солнце ---------- */
+
+function rayAttrs(r) {
+  return r.lit ? "" : r.mark ? `data-mark="${esc(r.mark)}"` : `data-goto="${esc(r.goto)}"`;
+}
+
+function sunSvg(sun, { big = false, rise = false } = {}) {
+  // Каждый луч — обследование, обязательная прививка или шаг профиля. Серый луч кликабелен: ведёт туда, где его зажечь.
+  const n = Math.max(sun.total, 1), C = 100, R1 = big ? 56 : 54, R2 = 94;
+  const width = Math.max(5, Math.min(13, 200 / n));
+  const rays = sun.rays.map((r, i) => {
+    const a = (-90 + i * 360 / n) * Math.PI / 180;
+    const xy = `x1="${(C + R1 * Math.cos(a)).toFixed(1)}" y1="${(C + R1 * Math.sin(a)).toFixed(1)}" x2="${(C + R2 * Math.cos(a)).toFixed(1)}" y2="${(C + R2 * Math.sin(a)).toFixed(1)}"`;
+    const cls = `ray ${r.lit ? "lit" : "off"} ${S.ignite.has(r.id) ? "ignite" : ""}`;
+    if (!big) return `<g class="${cls}"><line class="vis" ${xy} stroke-width="${width + 2}" pathLength="1"/></g>`;
+    return `<g class="${cls}" style="--i:${i}" ${rayAttrs(r)}><title>${esc(r.title)}${r.lit ? ": сделано" : ": нажмите, чтобы отметить"}</title>
+      <line class="hit" ${xy} stroke-width="${width + 12}"/><line class="vis" ${xy} stroke-width="${width}" pathLength="1"/></g>`;
+  }).join("");
+  const label = `Солнце здоровья: горит ${sun.lit} ${sun.lit % 10 === 1 && sun.lit % 100 !== 11 ? "луч" : "лучей"} из ${sun.total}`;
+  const core = big ? (sun.all_done
+      ? `<text class="sun-num" x="${C}" y="${C + 2}" text-anchor="middle" font-size="22">Всё</text><text class="sun-sub" x="${C}" y="${C + 20}" text-anchor="middle">сделано</text>`
+      : `<text class="sun-num" x="${C}" y="${C + 10}" text-anchor="middle" font-size="32" data-count="${sun.lit}">${rise ? 0 : sun.lit}</text>
+         <text class="sun-sub" x="${C}" y="${C + 28}" text-anchor="middle">из ${sun.total} ${rayWord(sun.total)}</text>`) : "";
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="${label}">${rays}<g class="disc"><circle class="core" cx="${C}" cy="${C}" r="${big ? 46 : 44}"/>${core}</g></svg>`;
+}
+
+function countUp(el) {
+  const target = +el.dataset.count, start = performance.now(), delay = 600, dur = 900;
+  const step = (now) => {
+    const k = Math.min(1, Math.max(0, (now - start - delay) / dur));
+    el.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/* ---------- Общие куски ---------- */
 
 function problemsHtml(plan) {
   return plan.problems.map((p) =>
@@ -291,54 +636,135 @@ function problemsHtml(plan) {
      ${p.field === "birth_date" || p.field === "sex" ? ` <a href="#" data-goto="profile">Заполнить профиль</a>` : ""}</div>`).join("");
 }
 
-function itemHtml(it, compact) {
-  return `<div class="card item ${it.status}">
-    <div>
-      <h3>${esc(it.title)} <span class="pill ${it.status}">${esc(it.status_label)}</span></h3>
-      <div class="muted" style="font-size:14px">Кому положено: ${esc(it.who)}. ${it.kind === "vaccine" ? "Бесплатно по национальному календарю прививок." : "Бесплатно по ОМС."}</div>
-      <div class="dates"><span>Последнее: <b>${fmt(it.last_date)}</b></span><span>Следующее: <b>${fmt(it.next_due)}</b></span></div>
+function whenText(it) {
+  if (it.status === "no_data") return it.conditional ? "уточните у терапевта" : "отметок нет";
+  if (it.status === "overdue") return "срок прошёл " + fmt(it.next_due);
+  if (it.status === "soon" || it.todo_this_year) return "до " + fmt(it.next_due);
+  return it.next_due ? "следующее " + fmt(it.next_due) : "сделано";
+}
+
+function hasPrep(test) { const t = S.tests.find((x) => x.test === test); return !!(t && t.prep); }
+
+function itemHtml(it) {
+  const vaccine = it.kind === "vaccine";
+  return `<details class="it" id="it-${esc(it.test)}" ${S.openItem === it.test ? "open" : ""}>
+    <summary><span class="ico ${it.status}">${icon(it.status, 2.2)}</span>
+      <span><b>${esc(it.title)}</b><span class="sub"><span class="pill ${it.status}">${esc(it.status_label)}</span>${esc(whenText(it))}</span></span>
+      <span class="chev">${icon("chev")}</span></summary>
+    <div class="it-body">
+      <div class="muted">Кому положено: ${esc(it.who)}. ${vaccine ? "Бесплатно по национальному календарю прививок." : "Бесплатно по ОМС."}</div>
+      <div class="dates"><div><span>Последнее</span><b>${fmt(it.last_date)}</b></div><div><span>Следующее</span><b>${fmt(it.next_due)}</b></div></div>
       ${it.notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}
-      ${compact ? "" : `${it.includes ? `<div class="muted" style="font-size:14px">Включает: ${esc(it.includes)}</div>` : ""}
-      <div class="src muted">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} ${esc(it.source.short || "приказа № 404н")}</a></div>`}
-      ${(it.status !== "actual" || it.todo_this_year) && !it.conditional ? `<div class="src"><a href="#" class="muted" data-letter="${esc(it.test)}">Отказали в поликлинике?</a></div>` : ""}
+      ${it.includes ? `<div class="muted">Включает: ${esc(it.includes)}</div>` : ""}
+      <div class="src">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} ${esc(it.source.short || "приказа № 404н")}</a></div>
+      <div class="row-btns">
+        <button class="btn" data-mark="${esc(it.test)}">${vaccine ? "Отметить прививку" : "Отметить пройденным"}</button>
+        ${hasPrep(it.test) ? `<button class="btn ghost" data-prep="${esc(it.test)}">Как подготовиться</button>` : ""}
+      </div>
+      <div class="it-links">
+        <button class="linkbtn" data-wiki="${esc(it.wiki)}">Зачем это?</button>
+        <button class="linkbtn" data-ai="${esc(it.test)}">Спросить AIbert</button>
+        ${needed(it) && !it.conditional ? `<button class="linkbtn muted" data-letter="${esc(it.test)}">Отказали в поликлинике?</button>` : ""}
+      </div>
     </div>
-    <div class="actions">
-      <button class="btn" data-mark="${esc(it.test)}">Пройдено</button>
-      <button class="btn ghost" data-prep="${esc(it.test)}">Как подготовиться</button>
-      ${compact ? "" : `<button class="btn ghost" data-wiki="${esc(it.wiki)}">Зачем это?</button>`}
-    </div>
+  </details>`;
+}
+
+function consentHtml(id) {
+  return `<label class="consent"><input type="checkbox" id="${id}" required>
+    <span>${esc(S.consent.text || "")} <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a></span></label>`;
+}
+
+function icsLink() { return `/calendar.ics${todayParam("/calendar.ics")}`; }
+function reportLink() { return `/report${todayParam("/report")}`; }
+
+function isEmpty(plan) {
+  const p = plan.profile || {};
+  return !p.birth_date && !p.sex && !(plan.history || []).length;
+}
+
+/* ---------- Сегодня ---------- */
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? "Доброй ночи" : h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
+}
+
+function mainStep(plan) {
+  // Один главный шаг: сначала диспансеризация (зажигает больше всего лучей), потом прививка, потом профиль.
+  const sun = plan.sun || { rays: [] };
+  const bundle = plan.items.find((i) => BUNDLES.includes(i.test) && needed(i));
+  if (bundle) {
+    const n = sun.rays.filter((r) => !r.lit && r.mark && r.kind !== "vaccine").length;
+    const disp = bundle.test === "dispanserization";
+    return { item: bundle, tag: bundle.status === "overdue" ? "Срок уже прошёл" : "В этом году",
+      title: disp ? "Пройдите диспансеризацию" : "Пройдите профилактический осмотр",
+      why: `Это один визит в поликлинику по месту прикрепления, бесплатно по полису ОМС. После него зажжётся до ${n} ${rayWord(n)} из ${sun.total}.`,
+      primary: `<button class="btn" data-article="how_to_pass">Как пройти</button>`,
+      secondary: `<button class="btn ghost" data-mark="${esc(bundle.test)}">Я уже прошёл(ла)</button>` };
+  }
+  const due = calendarItems(plan).filter(needed).sort((a, b) => (a.next_due || "").localeCompare(b.next_due || ""));
+  const it = due.find((i) => i.kind === "vaccine") || due[0];
+  if (it) {
+    const vaccine = it.kind === "vaccine";
+    return { item: it, tag: it.status === "overdue" ? "Срок уже прошёл" : vaccine ? "Прививка" : "Скоро",
+      title: it.title,
+      why: `${vaccine ? "Прививку делают" : "Обследование проходят"} бесплатно в поликлинике по месту прикрепления. Кому положено: ${it.who}.`,
+      primary: hasPrep(it.test) ? `<button class="btn" data-prep="${esc(it.test)}">Как подготовиться</button>` : `<button class="btn" data-wiki="${esc(it.wiki)}">Зачем это?</button>`,
+      secondary: `<button class="btn ghost" data-mark="${esc(it.test)}">${vaccine ? "Я уже привит(а)" : "Я уже прошёл(ла)"}</button>` };
+  }
+  const ray = sun.rays.find((r) => !r.lit && r.goto);
+  if (ray) {
+    const metrics = ray.goto === "metrics";
+    return { tag: "Осталось немного", title: metrics ? "Измерьте давление" : "Дополните профиль",
+      why: metrics ? "Давление стоит измерять хотя бы раз в год. Внесите значение в дневник, и луч зажжётся."
+        : "Курение меняет план обследований и советы врача. Укажите в профиле, курите ли вы.",
+      primary: `<button class="btn" data-goto="${esc(ray.goto)}">${metrics ? "Внести давление" : "Открыть профиль"}</button>`, secondary: "" };
+  }
+  const next = calendarItems(plan).filter((i) => i.next_due).sort((a, b) => a.next_due.localeCompare(b.next_due))[0];
+  return { tag: "Всё сделано", title: "Всё положенное сейчас пройдено",
+    why: next ? `Следующее по сроку: ${next.title}, ${fmt(next.next_due)}. Напомним заранее, если добавите календарь в телефон.` : "Новых сроков пока нет.",
+    primary: `<a class="btn" href="${icsLink()}" download="health-diary.ics">Добавить сроки в календарь</a>`, secondary: "" };
+}
+
+function nextRows(plan, skip) {
+  const list = calendarItems(plan).filter((i) => i.test !== skip && (needed(i) || i.next_due))
+    .sort((a, b) => (needed(b) - needed(a)) || (a.next_due || "0").localeCompare(b.next_due || "0")).slice(0, 5);
+  return list.map((i) => `<button class="next-row" data-open="${esc(i.test)}"><span class="ico ${i.status}">${icon(i.status, 2.2)}</span>
+    <span><b>${esc(i.title)}</b><span class="when">${esc(whenText(i))}</span></span><span class="chev">${icon("chev")}</span></button>`).join("");
+}
+
+function riskHtml(plan) {
+  return (plan.risk_factors || []).map((r) => `<div class="card risk"><h3>${esc(r.title)}</h3>
+    <p>${esc(r.text)}</p>
+    ${r.wiki ? `<a href="#" data-article="${esc(r.wiki)}">Подробнее о факторах риска</a>` : ""}</div>`).join("");
+}
+
+/* ---------- Онбординг ---------- */
+
+function onboardingHtml() {
+  const ob = S.ob, lit = ob.step - 1;
+  const mini = { total: 3, lit, all_done: false, rays: [0, 1, 2].map((i) => ({ id: "ob" + i, lit: i < lit })) };
+  const body = ob.step === 1 ? `<form id="obForm1"><div class="field"><label for="wBirth">Когда вы родились?</label>
+        <input type="date" id="wBirth" required value="${esc(ob.birth || "")}" max="${esc(S.plan.today)}"></div>
+        <button class="btn" type="submit" style="width:100%">Дальше</button></form>`
+    : ob.step === 2 ? `<span class="label">Ваш пол</span><p class="muted small" style="margin-top:2px">От него зависит, какие обследования положены.</p>
+        <div class="big-choice"><button class="btn ghost" data-sex="female">Женский</button><button class="btn ghost" data-sex="male">Мужской</button></div>
+        <button class="linkbtn muted" data-obback style="margin-top:12px">Назад</button>`
+    : `<form id="welcomeForm"><div class="field"><label for="wName">Как к вам обращаться</label><input id="wName" placeholder="Можно не заполнять" autocomplete="given-name" value="${esc(ob.name || "")}"></div>
+        ${consentHtml("wConsent")}
+        <button class="btn" type="submit" style="width:100%">Показать мой план</button>
+        <button type="button" class="linkbtn muted" data-obback style="margin-top:12px">Назад</button></form>`;
+  return `<div class="onb">
+    <div class="sun mini-sun">${sunSvg(mini)}</div>
+    <h1>Какие обследования вам положены бесплатно?</h1>
+    <p class="lead">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация. Ответьте на три вопроса, и дневник составит личный план по приказам Минздрава, со сроками и напоминаниями.</p>
+    <div class="card"><div class="onb-step">Шаг ${ob.step} из 3</div><div style="margin-top:10px">${body}</div></div>
+    <p class="muted small">Данные хранятся только на этом компьютере. <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
   </div>`;
 }
 
-function vaccinesHtml(plan) {
-  const list = plan.vaccines || [];
-  if (!list.length) return "";
-  return `<h2>Прививки (${list.length})</h2>
-    <div class="muted" style="margin-bottom:10px">По национальному календарю прививок, бесплатно в поликлинике по месту прикрепления.
-      «Если не прививались»: нужна, только если в детстве прививки не было или была одна. Это видно в медкарте, спросите терапевта.
-      <a href="#" data-article="vaccination">Подробнее о прививках</a></div>
-    <div class="grid">${list.map((i) => itemHtml(i)).join("")}</div>`;
-}
-
-function disputesHtml(plan, titles) {
-  const list = plan.disputes || [];
-  return `<h2>Проверьте, нет ли приписок</h2>
-    <div class="card">
-      <p style="margin-top:0">Приписка — это услуга в выписке ОМС, которую вам не оказывали. За неё поликлиника получает деньги,
-        а у вас в медкарте появляется обследование, которого не было. Выписку можно бесплатно заказать на Госуслугах: обычно она приходит в течение дня.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <a class="btn ghost" href="https://www.gosuslugi.ru/600438/1" target="_blank" rel="noopener noreferrer">Заказать выписку на Госуслугах</a>
-        <button class="btn" type="button" id="disputeBtn">В выписке есть то, чего я не проходил(а)</button>
-        <a href="https://www.gosuslugi.ru/help/faq/oms_service_cost/50011" target="_blank" rel="noopener noreferrer" style="font-size:14px">Как это работает</a>
-        <a href="#" data-article="clinic_refused" style="font-size:14px">Что делать с припиской</a>
-      </div>
-      ${list.length ? `<table style="margin-top:12px"><thead><tr><th>Дата в выписке</th><th>Услуга</th><th>Комментарий</th><th></th></tr></thead><tbody>
-        ${list.map((d) => `<tr><td>${fmt(d.date)}</td><td>${esc(titles[d.test] || d.test)}</td><td>${esc(d.comment)}</td>
-          <td style="white-space:nowrap"><button class="btn ghost" data-displetter="${esc(d.id)}">Заявление в страховую</button>
-            <button class="btn danger" data-deldispute="${esc(d.id)}">Удалить</button></td></tr>`).join("")}</tbody></table>
-        <div class="muted" style="font-size:13px;margin-top:6px">Эти записи не учитываются в плане: сроки считаются так, будто обследования не было.</div>` : ""}
-    </div>`;
-}
+/* ---------- Экраны ---------- */
 
 function monthTitle(d) {
   const month = d.toLocaleDateString("ru-RU", { month: "long" });
@@ -367,7 +793,7 @@ function md(text) {
       i--;
       const cells = (r) => r.split("|").slice(1, -1).map((c) => c.trim());
       const body = rows.slice(2).map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("");
-      out.push(`<table><thead><tr>${cells(rows[0]).map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`);
+      out.push(`<div style="overflow-x:auto"><table><thead><tr>${cells(rows[0]).map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`);
       continue;
     }
     const para = [line];
@@ -377,123 +803,10 @@ function md(text) {
   return out.join("");
 }
 
-async function openArticle(slug) {
-  S.article = await api("GET", "/api/wiki/" + encodeURIComponent(slug));
-  go("wiki");
-}
-
-async function loadWikiList(q) {
-  S.wikiQuery = q || "";
-  S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
-}
-
-function isEmpty(plan) {
-  const p = plan.profile || {};
-  return !p.birth_date && !p.sex && !(plan.history || []).length;
-}
-
-function consentHtml(id) {
-  return `<label class="consent"><input type="checkbox" id="${id}" required>
-    <span>${esc(S.consent.text || "")} <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a></span></label>`;
-}
-
-function myDataHtml(plan) {
-  const c = plan.consent;
-  const status = !c ? "Согласие на обработку данных не дано."
-    : c.demo ? "Сейчас открыт демо-пациент: это вымышленные данные."
-    : `Согласие на обработку данных о здоровье дано ${fmt(c.date)} (версия ${esc(c.version)}).`;
-  return `<h2>Мои данные</h2>
-    <div class="card" style="max-width:520px">
-      <p style="margin-top:0">${status} Данные хранятся только на этом компьютере. <a href="/privacy" target="_blank" rel="noopener">Как мы обрабатываем данные</a></p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn ghost" href="/export.zip" download>Скачать все мои данные</a>
-        <button class="btn danger" type="button" data-reset>${c && !c.demo ? "Отозвать согласие и удалить данные" : "Удалить данные и начать заново"}</button>
-      </div>
-      <div class="muted" style="font-size:13px;margin-top:8px">Архив содержит профиль, отметки, загруженные файлы и журнал вопросов к нейросети.
-        Отзыв согласия сразу удаляет всё это с компьютера.</div>
-    </div>`;
-}
-
-function welcomeHtml() {
-  return `<h1>Какие обследования вам положены бесплатно?</h1>
-    <div class="muted">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация.
-      Укажите дату рождения и пол, и сервис составит личный план по приказу Минздрава № 404н, со сроками и напоминаниями.</div>
-    <form class="card welcome" id="welcomeForm" style="margin-top:16px;max-width:520px">
-      <div class="row"><label for="wName">Как к вам обращаться</label><input id="wName" placeholder="Например, Анна" autocomplete="given-name"></div>
-      <div class="row"><label for="wBirth">Дата рождения *</label><input type="date" id="wBirth" required></div>
-      <div class="row"><label for="wSex">Пол *</label><select id="wSex" required><option value="">— выбрать —</option><option value="female">женский</option><option value="male">мужской</option></select></div>
-      ${consentHtml("wConsent")}
-      <button class="btn" type="submit">Показать мой план</button>
-      <div class="muted" style="font-size:13px;margin-top:8px">Данные хранятся только на этом компьютере. Позже можно отметить пройденные обследования и уточнить профиль.</div>
-    </form>
-    <h2>Или посмотрите пример</h2>
-    <div class="grid demos">${S.demos.map((d) => `<button class="card demo-card" data-demo="${esc(d.id)}"><b>${esc(d.name)}</b><span class="muted">${esc(d.description)}</span></button>`).join("")}</div>`;
-}
-
-async function loadDemo(id) {
-  S.plan = await api("POST", "/api/demo", { id }); S.chat = []; $("#demo").value = id; go("home"); toast("Загружен демо-пациент");
-}
-
-function icsButton() {
-  return `<a class="btn" href="/calendar.ics${todayParam("/calendar.ics")}" download="health-diary.ics">Добавить в календарь телефона</a>`;
-}
-
-function reportButton() {
-  return `<a class="btn ghost" href="/report${todayParam("/report")}" target="_blank" rel="noopener">Памятка для терапевта</a>`;
-}
-
-function rayAttrs(r) {
-  return r.lit ? "" : r.mark ? `data-mark="${esc(r.mark)}"` : `data-goto="${esc(r.goto)}"`;
-}
-
-function sunHtml(sun) {
-  // Каждый луч — обследование, обязательная прививка или шаг профиля. Серый луч кликабелен: ведёт туда, где его зажечь.
-  const n = sun.total, C = 105, R1 = 58, R2 = 100;
-  const width = Math.max(4, Math.min(14, 240 / n));
-  const rays = sun.rays.map((r, i) => {
-    const a = (-90 + i * 360 / n) * Math.PI / 180;
-    const xy = (rad) => `x1="${(C + R1 * Math.cos(a)).toFixed(1)}" y1="${(C + R1 * Math.sin(a)).toFixed(1)}" x2="${(C + rad * Math.cos(a)).toFixed(1)}" y2="${(C + rad * Math.sin(a)).toFixed(1)}"`;
-    return `<g class="ray ${r.lit ? "lit" : "off"}" ${rayAttrs(r)}><title>${esc(r.title)}${r.lit ? ": сделано" : ": нажмите, чтобы отметить"}</title>
-      <line class="hit" ${xy(R2)} stroke-width="${width + 10}"/><line ${xy(R2)} stroke-width="${width}"/></g>`;
-  }).join("");
-  const unlit = sun.rays.filter((r) => !r.lit);
-  const list = unlit.slice(0, 4).map((r) => `<li><a href="#" ${rayAttrs(r)}>${esc(r.title)}</a></li>`).join("");
-  return `<div class="card sun ${sun.all_done ? "done" : ""}">
-    <svg viewBox="0 0 210 210" role="img" aria-label="Солнце здоровья: горит ${sun.lit} лучей из ${n}">
-      ${rays}<circle class="core" cx="${C}" cy="${C}" r="48"/>
-      <text class="core-num" x="${C}" y="${C + 4}" text-anchor="middle">${sun.all_done ? "☀" : `${sun.lit} из ${n}`}</text>
-      <text class="core-sub" x="${C}" y="${C + 22}" text-anchor="middle">${sun.all_done ? "Всё сделано!" : "лучей горит"}</text>
-    </svg>
-    ${sun.all_done ? `<p style="margin:8px 0 0"><b>Всё сделано!</b> Все положенные сейчас обследования и прививки пройдены.</p>`
-      : `<div style="text-align:left;margin-top:8px;font-size:14px"><b>Чтобы зажечь лучи:</b></div><ul>${list}</ul>
-        ${unlit.length > 4 ? `<div class="muted" style="font-size:13px;text-align:left">И ещё ${unlit.length - 4}: нажмите на серый луч или откройте «Мой план».</div>` : ""}`}
-  </div>`;
-}
-
-function remindersHtml(plan) {
-  const list = plan.reminders || [];
-  const shown = list.slice(0, 5);
-  return `<div class="card reminders" style="margin-top:16px">
-      <h3 style="margin-top:0">Напоминания</h3>
-      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : r.no_data ? "no_data" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
-          <a href="#" data-mark="${esc(r.test)}">Отметить пройденным</a></li>`).join("")}</ul>
-          ${list.length > shown.length ? `<div class="muted">И ещё ${list.length - shown.length} — см. «Мой план».</div>` : ""}`
-        : `<p class="muted">В ближайшие 30 дней ничего проходить не нужно.</p>`}
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px">${icsButton()} ${reportButton()}
-        <span class="muted" style="font-size:13px">Календарь: все сроки с напоминанием за неделю и утром в день обследования. Памятка: одна страница для врача, её можно распечатать или сохранить в PDF.</span></div>
-    </div>`;
-}
-
-function riskHtml(plan) {
-  return (plan.risk_factors || []).map((r) => `<div class="card risk"><h3>${esc(r.title)}</h3>
-    <div>${esc(r.text)}</div>
-    ${r.wiki ? `<p style="margin:8px 0 0"><a href="#" data-article="${esc(r.wiki)}">Подробнее о факторах риска</a></p>` : ""}</div>`).join("");
-}
-
 function chartSvg(m) {
   // Простой график по датам: ось X — время, ось Y — значение; пунктир — граница фактора риска.
   const pts = m.points;
-  if (pts.length < 2) return `<p class="muted" style="font-size:13px">График появится после второго измерения.</p>`;
+  if (pts.length < 2) return `<p class="muted small">График появится после второго измерения.</p>`;
   const W = 300, H = 130, L = 30, R = 8, T = 10, B = 20;
   const t = pts.map((p) => new Date(p.date + "T00:00:00").getTime());
   const vals = pts.flatMap((p) => m.two_values ? [p.value, p.value2] : [p.value]);
@@ -503,7 +816,7 @@ function chartSvg(m) {
   const x = (i) => L + (t[i] - t[0]) / ((t[t.length - 1] - t[0]) || 1) * (W - L - R);
   const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
   const line = (key, cls) => `<polyline class="${cls}" points="${pts.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ")}"/>`
-    + pts.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[key]).toFixed(1)}" r="3" class="${cls}" style="fill:#fff"><title>${fmt(p.date)}: ${p[key]}</title></circle>`).join("");
+    + pts.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[key]).toFixed(1)}" r="3" class="${cls}"><title>${fmt(p.date)}: ${p[key]}</title></circle>`).join("");
   const ticks = [lo + pad, (lo + hi) / 2, hi - pad].map((v) => `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="2" y="${y(v) + 3}">${Math.round(v * 10) / 10}</text>`).join("");
   const lims = limits.map((v) => `<line class="limit" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join("");
   const dates = `<text x="${L}" y="${H - 4}">${fmt(pts[0].date)}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${fmt(pts[pts.length - 1].date)}</text>`;
@@ -513,235 +826,372 @@ function chartSvg(m) {
 function metricCard(m) {
   const last = m.last;
   return `<div class="card metric">
-    <h3 style="margin:0 0 6px;font-size:16px">${esc(m.title)}</h3>
-    ${last ? `<div class="big">${esc(last.text)} <small>${esc(m.unit)} · ${fmt(last.date)}</small></div>
-      ${m.change ? `<div class="muted" style="font-size:13px">${esc(m.change)}</div>` : ""}
+    <h3 style="margin-bottom:6px">${esc(m.title)}</h3>
+    ${last ? `<div class="big">${esc(last.text)} <small>${esc(m.unit)}, ${fmt(last.date)}</small></div>
+      ${m.change ? `<div class="muted small">${esc(m.change)}</div>` : ""}
       ${last.note ? `<div class="flag ${last.high ? "high" : "ok"}">${esc(last.note)}</div>` : ""}
       ${chartSvg(m)}
       <details><summary>Все измерения (${m.points.length})</summary><ul>${m.points.slice().reverse().map((p) => `<li><span>${fmt(p.date)}: <b>${m.two_values ? `${p.value}/${p.value2}` : p.value}</b></span>
-        <button class="linkbtn" data-delmetric="${esc(p.id)}">удалить</button></li>`).join("")}</ul></details>`
+        <button class="linkbtn danger" data-delmetric="${esc(p.id)}">Удалить</button></li>`).join("")}</ul></details>`
       : `<p class="muted">Пока нет измерений.</p>`}
   </div>`;
 }
 
+function disputesHtml(plan, titles) {
+  const list = plan.disputes || [];
+  return `<h2>Проверьте, нет ли приписок</h2>
+    <div class="card">
+      <p style="margin-top:0;max-width:68ch">Приписка — это услуга в выписке ОМС, которую вам не оказывали. За неё поликлиника получает деньги,
+        а у вас в медкарте появляется обследование, которого не было. Выписку можно бесплатно заказать на Госуслугах: обычно она приходит в течение дня.</p>
+      <div class="row-btns" style="margin-top:12px">
+        <button class="btn" type="button" id="disputeBtn">В выписке есть то, чего я не проходил(а)</button>
+        <a class="btn ghost" href="https://www.gosuslugi.ru/600438/1" target="_blank" rel="noopener noreferrer">Заказать выписку на Госуслугах</a>
+      </div>
+      <div class="it-links" style="margin-top:10px">
+        <a href="https://www.gosuslugi.ru/help/faq/oms_service_cost/50011" target="_blank" rel="noopener noreferrer">Как это работает</a>
+        <a href="#" data-article="clinic_refused">Что делать с припиской</a>
+      </div>
+      ${list.length ? `<div class="list" style="margin-top:16px">${list.map((d) => `<div class="rec"><span class="d">${fmt(d.date)}</span>
+          <span><b>${esc(titles[d.test] || d.test)}</b>${d.comment ? `<div class="muted small">${esc(d.comment)}</div>` : ""}</span>
+          <span class="acts"><button class="linkbtn" data-displetter="${esc(d.id)}">Заявление в страховую</button>
+            <button class="linkbtn danger" data-deldispute="${esc(d.id)}">Удалить</button></span></div>`).join("")}</div>
+        <p class="muted small">Эти записи не учитываются в плане: сроки считаются так, будто обследования не было.</p>` : ""}
+    </div>`;
+}
+
+function myDataHtml(plan) {
+  const c = plan.consent;
+  const status = !c ? "Согласие на обработку данных не дано."
+    : c.demo ? "Сейчас открыт демо-пациент: это вымышленные данные."
+    : `Согласие на обработку данных о здоровье дано ${fmt(c.date)} (версия ${esc(c.version)}).`;
+  return `<h2>Мои данные</h2>
+    <div class="card narrow">
+      <p style="margin-top:0">${status} Данные хранятся только на этом компьютере. <a href="/privacy" target="_blank" rel="noopener">Как мы обрабатываем данные</a></p>
+      <div class="row-btns" style="margin-top:12px">
+        <a class="btn ghost" href="/export.zip" download>Скачать все мои данные</a>
+        <button class="btn danger" type="button" data-reset>${c && !c.demo ? "Отозвать согласие и удалить данные" : "Удалить данные и начать заново"}</button>
+      </div>
+      <p class="muted small">Архив содержит профиль, отметки, загруженные файлы и журнал вопросов к AIbert. Отзыв согласия сразу удаляет всё это с компьютера.</p>
+    </div>`;
+}
+
+function settingsHtml() {
+  const theme = document.documentElement.dataset.theme || "system";
+  const big = document.documentElement.dataset.big === "1";
+  return `<h2>Внешний вид</h2>
+    <div class="card narrow stack" style="gap:16px">
+      <div><span class="label">Тема</span><div style="margin-top:8px"><div class="seg" role="group" aria-label="Тема">
+        ${[["light", "Светлая"], ["dark", "Тёмная"], ["system", "Как в системе"]].map(([v, t]) => `<button data-theme-set="${v}" aria-pressed="${theme === v}">${t}</button>`).join("")}</div></div></div>
+      <label class="switch"><input type="checkbox" id="bigFont" ${big ? "checked" : ""}> Крупный шрифт</label>
+    </div>`;
+}
+
 const VIEWS = {
   home(plan) {
-    const name = plan.name ? esc(plan.name) : "Добро пожаловать";
-    if (isEmpty(plan)) return welcomeHtml();
-    if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
-    const s = plan.summary;
-    const next = calendarItems(plan).filter((i) => i.status !== "actual" || i.todo_this_year).slice(0, 5);
-    return `<h1>${name}</h1>
-      <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
+    if (isEmpty(plan)) return onboardingHtml();
+    const name = firstName(plan);
+    const head = `<h1 class="greet display">${greeting()}${name ? ", " + esc(name) : ""}</h1>`;
+    if (!plan.ready) return `${head}${problemsHtml(plan)}`;
+    const step = mainStep(plan);
+    const rise = !S.risen && !reduceMotion();
+    return `${head}
+      <p class="lead">Вот что важно сейчас. Каждое пройденное обследование и прививка зажигают луч солнца.</p>
       ${problemsHtml(plan)}
-      <div class="home-top">
-        ${plan.sun ? sunHtml(plan.sun) : ""}
-        <div class="grid tiles">
-          <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
-          <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
-          <div class="tile no_data"><b>${s.counts.no_data}</b>нет данных</div>
-          <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
+      <div class="hero">
+        ${plan.sun ? `<div class="sun ${plan.sun.all_done ? "done" : ""} ${rise ? "rise" : ""}" id="bigSun">${sunSvg(plan.sun, { big: true, rise })}</div>` : ""}
+        <div class="card step">
+          <span class="eyebrow">${esc(step.tag)}</span>
+          <h2>${esc(step.title)}</h2>
+          <p class="why">${esc(step.why)}</p>
+          <div class="row-btns">${step.primary}${step.secondary}</div>
+          ${step.item && !step.item.conditional ? `<button class="linkbtn muted" data-letter="${esc(step.item.test)}">Отказали в поликлинике?</button>` : ""}
         </div>
       </div>
       ${riskHtml(plan)}
-      ${remindersHtml(plan)}
-      <div class="card" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <b style="margin-right:8px">Спросите ассистента:</b>
-        ${QUICK.slice(0, 3).map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}
+      <h2>Дальше по срокам</h2>
+      <div class="card next">${nextRows(plan, step.item && step.item.test) || `<p class="muted" style="padding:10px 14px">Больше ничего не запланировано.</p>`}</div>
+      <div class="tools" style="margin-top:12px">
+        <a class="card tool" href="${icsLink()}" download="health-diary.ics"><b>Календарь в телефон</b><span class="muted small">Все сроки с напоминанием за неделю и утром в день обследования.</span></a>
+        <a class="card tool" href="${reportLink()}" target="_blank" rel="noopener"><b>Памятка врачу</b><span class="muted small">Одна страница для терапевта: можно распечатать или сохранить в PDF.</span></a>
       </div>
-      <h2>Что сделать в первую очередь</h2>
-      ${next.length ? `<div class="grid">${next.map((i) => itemHtml(i, true)).join("")}</div>`
-        : `<div class="card">Всё пройдено вовремя. Следующее обследование: ${esc(plan.items[0]?.title || "")} ${fmt(plan.items[0]?.next_due)}.</div>`}
-      <p class="muted">Все обследования из плана входят в профилактический осмотр и диспансеризацию и проводятся бесплатно по полису ОМС в поликлинике по месту прикрепления.
-        <a href="#" data-article="how_to_pass">Как пройти диспансеризацию</a> · <a href="#" data-article="oms">Что даёт полис ОМС</a></p>`;
-  },
-
-  plan(plan) {
-    if (!plan.ready) return `<h1>Мой план</h1>${problemsHtml(plan)}`;
-    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"],
-      ["no_data", "Нет данных: пройти при ближайшем визите"], ["actual", "Актуально"]];
-    return `<h1>Мой план профилактики</h1>
-      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.
-        «Нет данных» значит, что отметок о прохождении нет: если уже проходили, нажмите «Пройдено» и укажите дату.</div>
-      ${problemsHtml(plan)}
-      ${groups.map(([st, title]) => {
-        const items = plan.items.filter((i) => i.status === st);
-        if (!items.length) return "";
-        const list = `<div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>`;
-        // Просроченное сворачиваем, чтобы список не пугал, но и не прячем: план должен соответствовать приказу.
-        if (st === "overdue") return `<details class="group" ${S.openOverdue ? "open" : ""} data-overdue>
-          <summary>${title} (${items.length})<span>${S.openOverdue ? "свернуть" : "показать"}</span></summary>${list}</details>`;
-        return `<h2>${title} (${items.length})</h2>${list}`;
-      }).join("")}
-      ${vaccinesHtml(plan)}`;
-  },
-
-  calendar(plan) {
-    if (!plan.ready) return `<h1>Календарь</h1>${problemsHtml(plan)}`;
-    const today = new Date(plan.today + "T00:00:00");
-    const months = [];
-    for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
-    const key = (d) => d.getFullYear() * 12 + d.getMonth();
-    const chip = (i) => `<span class="chip ${i.status}" data-mark="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)} · ${fmt(i.next_due)}</small></span>`;
-    const all = calendarItems(plan);
-    const overdue = all.filter((i) => i.status === "overdue" || i.status === "no_data");
-    const later = all.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
-    return `<h1>Календарь обследований</h1>
-      <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
-      <p>${icsButton()}</p>
-      <div class="grid cal" style="margin-top:16px">
-        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
-        ${months.map((m, idx) => {
-          const items = all.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
-          return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
-            ${items.length ? items.map(chip).join("") : `<span class="muted" style="font-size:13px">Ничего не запланировано</span>`}</div>`;
-        }).join("")}
-        ${later.length ? `<div class="card month"><h3>Позже</h3>${later.map(chip).join("")}</div>` : ""}
+      <div class="card ask-card" style="margin-top:12px">
+        ${doctorSvg()}
+        <div><h3>Спросите AIbert</h3><p class="muted small" style="margin:2px 0 10px">Отвечу по вашему плану, со ссылкой на приказ или статью.</p>
+          <div class="chips">${QUICK.slice(0, 3).map((q) => `<button class="chip-q" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div></div>
       </div>`;
   },
 
-  history(plan) {
-    const titles = Object.fromEntries(S.tests.map((t) => [t.test, t.title]));
-    const rows = plan.history.map((r) => `<tr>
-        <td>${fmt(r.date)}</td><td>${esc(titles[r.test] || r.test)}</td><td>${esc(r.result)}</td>
-        <td>${r.file ? `<a href="/files/${encodeURIComponent(r.file.stored)}" target="_blank">${esc(r.file.name)}</a>` : ""}</td>
-        <td style="white-space:nowrap"><button class="btn ghost" data-edit="${esc(r.id)}">Изменить</button>
-          <button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
-    return `<h1>Пройденные обследования</h1>
-      <div class="muted">После каждой записи сроки и статусы в плане пересчитываются автоматически.</div>
-      <p>${reportButton()}</p>
-      <div class="card" style="margin-top:16px;overflow-x:auto">
-        ${rows ? `<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th><th>Файл</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
-          : `<p class="muted">Пока нет записей. Нажмите «+ Отметить прохождение».</p>`}
-      </div>
-      ${disputesHtml(plan, titles)}`;
+  plan(plan) {
+    if (!plan.ready) return `<h1>План</h1>${problemsHtml(plan)}`;
+    const mode = S.mode.plan;
+    return `<div class="head-row"><div><h1>Мой план</h1>
+        <p class="lead">Составлен по возрасту, полу и отметкам. «Отметок нет» значит, что дат в дневнике нет: если уже проходили, откройте строку и отметьте.</p></div>
+        <div class="seg" role="group" aria-label="Вид плана">
+          <button data-mode="plan:list" aria-pressed="${mode === "list"}">Список</button><button data-mode="plan:calendar" aria-pressed="${mode === "calendar"}">Календарь</button></div></div>
+      ${problemsHtml(plan)}
+      ${mode === "calendar" ? calendarHtml(plan) : planListHtml(plan)}`;
   },
 
-  metrics(plan) {
-    const data = plan.metrics || { items: [] };
-    const kinds = data.items.map((m) => `<option value="${esc(m.kind)}">${esc(m.title)}, ${esc(m.unit)}</option>`).join("");
-    return `<h1>Показатели здоровья</h1>
-      <div class="muted">Вносите давление, вес, холестерин и сахар: из дома или из результатов анализов. Дневник покажет, как они меняются,
-        и подскажет, если значение выше критерия фактора риска. Это не диагноз: решение принимает врач.</div>
-      <form class="card metric-form" id="metricForm" style="margin-top:16px">
-        <div><label for="mtKind">Показатель</label><select id="mtKind">${kinds}</select></div>
-        <div><label for="mtDate">Дата</label><input type="date" id="mtDate" value="${esc(plan.today)}" max="${esc(plan.today)}" required></div>
-        <div><label for="mtValue" id="mtValueLabel">Значение</label><input id="mtValue" inputmode="decimal" required placeholder="например, 5,2"></div>
-        <div id="mtValue2Box" style="display:none"><label for="mtValue2">Нижнее</label><input id="mtValue2" inputmode="decimal" placeholder="например, 80"></div>
-        <button class="btn" type="submit">Добавить</button>
-      </form>
-      <div class="grid metrics">${data.items.map(metricCard).join("")}</div>
-      ${data.source ? `<p class="muted" style="font-size:13px">Границы: давление 140/90, общий холестерин 5,0 ммоль/л, сахар натощак 6,1 ммоль/л —
-        <a href="${esc(data.source.url)}" target="_blank" rel="noopener">${esc(data.source.title)}</a>.</p>` : ""}`;
+  diary(plan) {
+    const mode = S.mode.diary;
+    return `<div class="head-row"><div><h1>Дневник</h1>
+        <p class="lead">${mode === "metrics" ? "Давление, вес, холестерин и сахар: из дома или из результатов анализов." : "Всё, что вы прошли. После каждой записи сроки в плане пересчитываются сами."}</p></div>
+        <div class="seg" role="group" aria-label="Раздел дневника">
+          <button data-mode="diary:done" aria-pressed="${mode === "done"}">Пройдено</button><button data-mode="diary:metrics" aria-pressed="${mode === "metrics"}">Показатели</button></div></div>
+      ${mode === "metrics" ? metricsHtml(plan) : historyHtml(plan)}`;
+  },
+
+  wiki() {
+    if (S.article) {
+      const a = S.article;
+      return `<button class="linkbtn" data-wikilist="1">Все статьи</button>
+        <article class="card md" style="margin-top:12px">
+          <div class="muted small">${esc(a.category)}</div>
+          <h1>${esc(a.title)}</h1>
+          ${md(a.body)}
+          <h2>Источники</h2>
+          <ol class="src">${a.sources.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join("")}</ol>
+          <p class="muted small">Актуальность источников проверена ${fmt(a.checked)}. Материал носит справочный характер и не заменяет консультацию врача.</p>
+        </article>`;
+    }
+    const groups = {};
+    ["ОМС и права пациента", "Диспансеризация", "Обследования", "Онкоскрининг", "Сохранение здоровья"].forEach((c) => (groups[c] = []));
+    (S.wikiList || []).forEach((a) => (groups[a.category] = groups[a.category] || []).push(a));
+    return `<h1>Справка</h1>
+      <p class="lead">Понятные статьи об ОМС, диспансеризации и обследованиях. У каждой есть ссылки на официальные источники.</p>
+      <input id="wikiSearch" class="search" type="search" placeholder="Поиск: например, выходной для диспансеризации" aria-label="Поиск по справке" value="${esc(S.wikiQuery || "")}">
+      ${(S.wikiList || []).length ? Object.entries(groups).filter(([, list]) => list.length).map(([cat, list]) => `<h2>${esc(cat)}</h2>
+        <div class="wiki-grid">${list.map((a) => `<a href="#" class="card wiki-card" data-article="${esc(a.slug)}"><b>${esc(a.title)}</b><span>${esc(a.summary)}</span></a>`).join("")}</div>`).join("")
+        : `<div class="card muted" style="margin-top:16px">Ничего не найдено. Попробуйте другие слова.</div>`}`;
   },
 
   profile(plan) {
     const p = plan.profile || {};
     const conds = new Set(p.conditions || []);
     return `<h1>Профиль</h1>
-      <div class="muted">Обязательны только дата рождения и пол: от них зависит состав плана.</div>
+      <p class="lead">Обязательны только дата рождения и пол: от них зависит состав плана.</p>
       ${problemsHtml(plan)}
-      <form class="card" id="profileForm" style="margin-top:16px;max-width:520px">
-        <div class="row"><label for="pName">Имя</label><input id="pName" value="${esc(plan.name)}"></div>
-        <div class="row"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}"></div>
-        <div class="row"><label for="pSex">Пол *</label><select id="pSex">
+      <form class="card narrow" id="profileForm" style="margin-top:20px">
+        <div class="field"><label for="pName">Имя</label><input id="pName" value="${esc(plan.name)}"></div>
+        <div class="field"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}"></div>
+        <div class="field"><label for="pSex">Пол *</label><select id="pSex">
           <option value="">не указан</option>
           ${Object.entries(SEX).map(([v, t]) => `<option value="${v}" ${p.sex === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
-        <div class="row"><label for="pSmoking">Курение</label><select id="pSmoking">
+        <div class="field"><label for="pSmoking">Курение</label><select id="pSmoking">
           ${["", "Не курит", "Курит", "Бросил курить"].map((v) => `<option ${p.smoking === v ? "selected" : ""} value="${v}">${v || "не указано"}</option>`).join("")}</select></div>
-        <div class="row checks"><label>Перенесённые операции, которые меняют план</label>
+        <div class="field checks"><span class="label">Перенесённые операции, которые меняют план</span>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
-        <div class="row checks"><label>Прививки</label>
+        <div class="field checks"><span class="label">Прививки</span>
           <label><input type="checkbox" value="flu_risk" ${conds.has("flu_risk") ? "checked" : ""}> Мне положена ежегодная прививка от гриппа</label>
-          <div class="muted" style="font-size:13px">Отметьте, если вы беременны, у вас хроническое заболевание (сердца, лёгких, диабет и т. п.),
+          <div class="muted small">Отметьте, если вы беременны, у вас хроническое заболевание (сердца, лёгких, диабет и т. п.),
             вы работаете в медицине, образовании, торговле, на транспорте или в коммунальной сфере. После 60 лет прививка добавится сама.</div></div>
         ${plan.consent ? "" : consentHtml("pConsent")}
         <button class="btn" type="submit">Сохранить и пересчитать план</button>
       </form>
-      ${myDataHtml(plan)}`;
-  },
-
-  assistant() {
-    const msgs = S.chat.map((m) => m.role === "user"
-      ? `<div class="msg user">${esc(m.text)}</div>`
-      : `<div class="msg bot">${esc(m.answer).replace(/\n/g, "<br>")}
-          ${m.sources && m.sources.length ? `<div class="msg-src">Источники: ${m.sources.map((x, i) => (m.numbered ? `[${i + 1}] ` : "") + (x.wiki
-              ? `<a href="#" data-article="${esc(x.wiki)}">${esc(x.title)}</a>`
-              : x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title))).join(" · ")}</div>` : ""}
-          <div class="msg-mode">${m.mode === "yandexgpt" ? "Ответ YandexGPT, проверен по источникам" : "Локальный режим: ответ собран из вашего плана и Wiki"}${m.note ? " · " + esc(m.note) : ""}</div>
-        </div>`).join("");
-    return `<h1>Ассистент</h1>
-      <div class="muted">Отвечает по вашему плану и статьям Wiki, всегда со ссылками на источники. Не ставит диагнозы и не назначает лечение.
-        Режим: <b>${S.llm ? "YandexGPT + проверка источников" : "локальный (без интернета)"}</b>
-        ${!S.llm && S.llmStatus.length > 1 ? `<details class="muted"><summary>Почему не YandexGPT?</summary>${S.llmStatus.slice(1).map(esc).join("<br>")}</details>` : ""}</div>
-      <div class="privacy-note">${S.llm
-        ? "Вопрос отправляется в YandexGPT (Яндекс Облако, серверы в России) вместе с возрастом, полом и пунктами плана. Имя, дата рождения, результаты анализов и файлы не отправляются. Телефоны, e-mail, номера полиса, СНИЛС и паспорта вырезаются автоматически."
-        : "Вопросы обрабатываются на этом компьютере и никуда не отправляются."}
-        <a href="/privacy" target="_blank" rel="noopener">Подробнее</a></div>
-      <div class="card chat" style="margin-top:16px">
-        <div id="chatLog">${msgs || `<p class="muted">Спросите, например:</p>`}</div>
-        <div class="quick">${QUICK.map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>
-        <form id="askForm" class="ask"><input id="askInput" placeholder="Ваш вопрос о профилактике, ОМС или вашем плане" autocomplete="off"><button class="btn" type="submit">Спросить</button></form>
-      </div>`;
-  },
-
-  wiki() {
-    if (S.article) {
-      const a = S.article;
-      return `<p><a href="#" data-wikilist="1">← Все статьи</a></p>
-        <article class="card md" style="max-width:760px">
-          <div class="muted" style="font-size:13px">${esc(a.category)}</div>
-          <h1>${esc(a.title)}</h1>
-          ${md(a.body)}
-          <h2>Источники</h2>
-          <ol class="src">${a.sources.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join("")}</ol>
-          <p class="muted" style="font-size:13px">Актуальность источников проверена ${fmt(a.checked)}. Материал носит справочный характер и не заменяет консультацию врача.</p>
-        </article>`;
-    }
-    const groups = {};
-    const ORDER = ["ОМС и права пациента", "Диспансеризация", "Обследования", "Онкоскрининг", "Сохранение здоровья"];
-    ORDER.forEach((c) => (groups[c] = []));
-    (S.wikiList || []).forEach((a) => (groups[a.category] = groups[a.category] || []).push(a));
-    return `<h1>Здоровье / Wiki</h1>
-      <div class="muted">Понятные статьи об ОМС, диспансеризации и обследованиях. У каждой статьи есть ссылки на официальные источники.</div>
-      <input id="wikiSearch" placeholder="Поиск: например, «выходной для диспансеризации»" value="${esc(S.wikiQuery || "")}" style="margin:16px 0;max-width:520px">
-      ${(S.wikiList || []).length ? Object.entries(groups).filter(([, list]) => list.length).map(([cat, list]) => `<h2>${esc(cat)}</h2>
-        <div class="grid tiles">${list.map((a) => `<a href="#" class="card wiki-card" data-article="${esc(a.slug)}"><b>${esc(a.title)}</b><span class="muted">${esc(a.summary)}</span></a>`).join("")}</div>`).join("")
-        : `<div class="card muted">Ничего не найдено. Попробуйте другие слова.</div>`}`;
+      ${settingsHtml()}
+      ${myDataHtml(plan)}
+      <h2>Для презентации</h2>
+      <div class="card narrow"><p style="margin-top:0">Вымышленные пациенты и расчёт на любую дату.</p>
+        <button class="btn ghost" data-demo-open>Открыть режим показа</button></div>`;
   },
 };
+
+function planListHtml(plan) {
+  const groups = [["overdue", "Просрочено"], ["soon", "Скоро"], ["no_data", "Отметок нет: пройти при ближайшем визите"], ["actual", "Актуально"]];
+  const vaccines = plan.vaccines || [];
+  return groups.map(([st, title]) => {
+    const items = plan.items.filter((i) => i.status === st);
+    if (!items.length) return "";
+    const list = `<div class="list">${items.map(itemHtml).join("")}</div>`;
+    // Просроченное сворачиваем, чтобы список не пугал, но и не прячем: план должен соответствовать приказу.
+    if (st === "overdue") return `<details class="group" id="grpOverdue" ${S.openOverdue ? "open" : ""}>
+      <summary><h2>${title} (${items.length})</h2><span class="linkbtn">${S.openOverdue ? "Свернуть" : "Показать"}</span></summary>${list}</details>`;
+    return `<h2>${title} (${items.length})</h2>${list}`;
+  }).join("") + (vaccines.length ? `<h2>Прививки (${vaccines.length})</h2>
+    <p class="muted" style="max-width:68ch;margin-top:-4px">По национальному календарю прививок, бесплатно в поликлинике по месту прикрепления.
+      «Если не прививались»: нужна, только если в детстве прививки не было или была одна. Это видно в медкарте, спросите терапевта.
+      <a href="#" data-article="vaccination">Подробнее о прививках</a></p>
+    <div class="list">${vaccines.map(itemHtml).join("")}</div>` : "");
+}
+
+function calendarHtml(plan) {
+  const today = new Date(plan.today + "T00:00:00");
+  const months = [];
+  for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
+  const key = (d) => d.getFullYear() * 12 + d.getMonth();
+  const chip = (i) => `<button class="cal-chip ${i.status}" data-open="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)}, ${fmt(i.next_due)}</small></button>`;
+  const all = calendarItems(plan);
+  const overdue = all.filter((i) => i.status === "overdue" || i.status === "no_data");
+  const later = all.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
+  return `<div class="row-btns" style="margin-top:16px"><a class="btn ghost" href="${icsLink()}" download="health-diary.ics">Добавить в календарь телефона</a></div>
+    <div class="cal">
+      ${overdue.length ? `<div class="card month"><h3 style="color:var(--overdue)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
+      ${months.map((m, idx) => {
+        const items = all.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
+        return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
+          ${items.length ? items.map(chip).join("") : `<span class="muted small">Ничего не запланировано</span>`}</div>`;
+      }).join("")}
+      ${later.length ? `<div class="card month"><h3>Позже</h3>${later.map(chip).join("")}</div>` : ""}
+    </div>`;
+}
+
+function historyHtml(plan) {
+  const titles = Object.fromEntries(S.tests.map((t) => [t.test, t.title]));
+  const rows = plan.history.slice().sort((a, b) => b.date.localeCompare(a.date)).map((r) => `<div class="rec">
+      <span class="d">${fmt(r.date)}</span>
+      <span><b>${esc(titles[r.test] || r.test)}</b>${r.result ? `<div class="muted small">${esc(r.result)}</div>` : ""}
+        ${r.file ? `<div class="small"><a href="/files/${encodeURIComponent(r.file.stored)}" target="_blank">${esc(r.file.name)}</a></div>` : ""}</span>
+      <span class="acts"><button class="linkbtn" data-edit="${esc(r.id)}">Изменить</button>
+        <button class="linkbtn danger" data-del="${esc(r.id)}">Удалить</button></span></div>`).join("");
+  return `<div class="row-btns" style="margin-top:16px">
+      <button class="btn" data-mark="">Отметить пройденное</button>
+      <a class="btn ghost" href="${reportLink()}" target="_blank" rel="noopener">Памятка врачу</a></div>
+    <div class="list" style="margin-top:16px">${rows || `<p class="muted" style="padding:16px 18px;margin:0">Пока нет записей. Нажмите «Отметить пройденное».</p>`}</div>
+    ${disputesHtml(plan, titles)}`;
+}
+
+function metricsHtml(plan) {
+  const data = plan.metrics || { items: [] };
+  const kinds = data.items.map((m) => `<option value="${esc(m.kind)}">${esc(m.title)}, ${esc(m.unit)}</option>`).join("");
+  return `<form class="card metric-form" id="metricForm">
+      <div><label for="mtKind">Показатель</label><select id="mtKind">${kinds}</select></div>
+      <div><label for="mtDate">Дата</label><input type="date" id="mtDate" value="${esc(plan.today)}" max="${esc(plan.today)}" required></div>
+      <div><label for="mtValue" id="mtValueLabel">Значение</label><input id="mtValue" inputmode="decimal" required placeholder="например, 5,2"></div>
+      <div id="mtValue2Box" hidden><label for="mtValue2">Нижнее</label><input id="mtValue2" inputmode="decimal" placeholder="например, 80"></div>
+      <button class="btn" type="submit">Добавить</button>
+    </form>
+    <p class="muted small">Дневник подскажет, если значение выше критерия фактора риска. Это не диагноз: решение принимает врач.</p>
+    <div class="metrics">${data.items.map(metricCard).join("")}</div>
+    ${data.source ? `<p class="muted small">Границы: давление 140/90, общий холестерин 5,0 ммоль/л, сахар натощак 6,1 ммоль/л. Источник:
+      <a href="${esc(data.source.url)}" target="_blank" rel="noopener">${esc(data.source.title)}</a>.</p>` : ""}`;
+}
+
+/* ---------- Отрисовка и навигация ---------- */
+
+function chrome() {
+  const plan = S.plan;
+  $("#sideNav").innerHTML = NAV.map(([k, t]) => `<button class="nav-btn" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${icon(k)}${t}</button>`).join("");
+  $("#tabbar").innerHTML = NAV.slice(0, 2).map(([k, t]) => `<button data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${icon(k)}${t}</button>`).join("")
+    + `<button class="ai-tab" data-ai aria-label="AIbert">${doctorSvg()}<span class="wordmark" style="font-size:.7rem"><span class="a">AI</span>bert</span></button>`
+    + NAV.slice(2).map(([k, t]) => `<button data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${icon(k)}${t}</button>`).join("");
+  document.querySelectorAll(".avatar-slot").forEach((s) => (s.innerHTML = doctorSvg(true)));
+  const name = firstName(plan) || "Профиль";
+  const me = `<span class="initial">${esc(name[0])}</span><span>${esc(name)}</span>`;
+  $("#sideMe").innerHTML = me; $("#topMe").innerHTML = me;
+  $("#sideMe").toggleAttribute("aria-current", S.tab === "profile");
+  const logo = sunSvg({ total: 8, lit: 8, rays: Array.from({ length: 8 }, (_, i) => ({ id: "l" + i, lit: true })) });
+  $("#brandSun").innerHTML = `<span class="sun">${logo}</span>`;
+  $("#brandSunM").innerHTML = $("#brandSun").innerHTML;
+  const ss = $("#sideSun");
+  ss.hidden = !(plan.sun && plan.ready && !isEmpty(plan)) || S.tab === "home";
+  if (!ss.hidden) ss.innerHTML = `<span class="sun">${sunSvg(plan.sun)}</span><span><b>${plan.sun.lit} из ${plan.sun.total}</b>${rayWord(plan.sun.total)} зажжено</span>`;
+  const demo = plan.consent && plan.consent.demo;
+  $("#demoBanner").innerHTML = demo ? `<div class="demo-banner"><div class="in">Это демо-пациент: вымышленные данные${$("#today").value ? `, расчёт на ${fmt($("#today").value)}` : ""}.
+    <button class="linkbtn" data-demo-open>Сменить пациента</button><button class="linkbtn" data-exit-demo>Выйти из демо</button></div></div>` : "";
+}
 
 function render() {
   if (!S.plan) return;
   $("#view").innerHTML = VIEWS[S.tab](S.plan);
-  if (S.tab === "metrics") metricKindChanged();
-  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === S.tab));
-  $("#todayHint").textContent = "(расчёт на " + fmt(S.plan.today) + ")";
+  chrome();
+  if (S.tab === "diary" && S.mode.diary === "metrics") metricKindChanged();
+  const big = $("#bigSun");
+  if (big && big.classList.contains("rise")) { S.risen = true; try { sessionStorage.setItem("risen", "1"); } catch (e) {} const n = big.querySelector("[data-count]"); if (n) countUp(n); }
+  S.ignite = new Set();
 }
 
-function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+const ALIAS = { calendar: ["plan", "calendar"], metrics: ["diary", "metrics"], history: ["diary", "done"] };
+function go(tab) {
+  if (tab === "assistant") return openAI();
+  const a = ALIAS[tab];
+  if (a) { S.tab = a[0]; S.mode[a[0]] = a[1]; } else S.tab = tab;
+  S.openItem = null;
+  render(); window.scrollTo(0, 0);
+}
 
-const BUNDLES = ["dispanserization", "profosmotr"];
+function openItem(test) {
+  const it = allItems(S.plan).find((i) => i.test === test);
+  S.tab = "plan"; S.mode.plan = "list"; S.openItem = test;
+  if (it && it.status === "overdue" && it.kind !== "vaccine") S.openOverdue = true;
+  render();
+  const el = document.getElementById("it-" + test);
+  if (el) { el.scrollIntoView({ block: "center", behavior: reduceMotion() ? "auto" : "smooth" }); el.classList.add("flash"); el.querySelector("summary").focus({ preventScroll: true }); }
+}
+
+/* ---------- AIbert ---------- */
+
+function chipsFor(ctx) {
+  if (!ctx) return QUICK;
+  return [`Зачем нужно: ${ctx.title}?`, `Когда мне пройти: ${ctx.title}?`, "Как получить выходной на работе для диспансеризации?"];
+}
+
+function renderChat() {
+  const msgs = S.chat.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>`
+    : m.pending ? `<div class="msg bot" aria-label="AIbert думает"><span class="typing"><i></i><i></i><i></i></span></div>`
+    : `<div class="msg bot">${esc(m.answer).replace(/\n/g, "<br>")}
+        ${m.sources && m.sources.length ? `<div class="msg-src">Источники: ${m.sources.map((x, i) => (m.numbered ? `[${i + 1}] ` : "") + (x.wiki
+            ? `<a href="#" data-article="${esc(x.wiki)}">${esc(x.title)}</a>`
+            : x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title))).join("; ")}</div>` : ""}
+        ${m.mode ? `<div class="msg-mode">${m.mode === "yandexgpt" ? "Ответ YandexGPT, проверен по источникам" : "Ответ собран из вашего плана и справки"}${m.note ? ". " + esc(m.note) : ""}</div>` : ""}
+      </div>`).join("");
+  const name = firstName(S.plan);
+  $("#chatLog").innerHTML = msgs || `<div class="msg bot">Здравствуйте${name ? ", " + esc(name) : ""}. Я AIbert. Помогу разобраться с планом обследований, ОМС и подготовкой к визиту.
+    ${S.aiContext ? `<br><br>Сейчас смотрим: <b>${esc(S.aiContext.title)}</b>.` : ""}</div>`;
+  $("#aiChips").innerHTML = chipsFor(S.aiContext).map((q) => `<button class="chip-q" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
+  $("#aiPrivacy").innerHTML = `<summary>${S.llm ? "Режим: YandexGPT с проверкой источников" : "Режим: на этом компьютере, без интернета"}</summary>
+    <p>${S.llm ? "Вопрос отправляется в YandexGPT (Яндекс Облако, серверы в России) вместе с возрастом, полом и пунктами плана. Имя, дата рождения, результаты анализов и файлы не отправляются. Телефоны, e-mail, номера полиса, СНИЛС и паспорта вырезаются автоматически."
+      : "Вопросы обрабатываются на этом компьютере и никуда не отправляются."}
+      ${!S.llm && S.llmStatus.length > 1 ? "<br>" + S.llmStatus.slice(1).map(esc).join("<br>") : ""}
+      <a href="/privacy" target="_blank" rel="noopener">Подробнее</a></p>`;
+  const log = $("#chatLog"); log.scrollTop = log.scrollHeight;
+}
+
+function openAI(test) {
+  S.aiContext = test ? allItems(S.plan).find((i) => i.test === test) || null : null;
+  renderChat();
+  const d = $("#aiDialog");
+  if (!d.open) d.showModal();
+  $("#askInput").focus();
+}
+
+async function ask(question) {
+  question = question.trim();
+  if (!question) return;
+  if (!$("#aiDialog").open) openAI();
+  S.chat.push({ role: "user", text: question }, { role: "bot", pending: true });
+  $("#askInput").value = "";
+  renderChat();
+  try {
+    const r = await api("POST", "/api/ask", { question });
+    S.chat[S.chat.length - 1] = Object.assign({ role: "bot" }, r);
+  } catch (err) {
+    S.chat[S.chat.length - 1] = { role: "bot", answer: "Не получилось ответить: " + err.message };
+  }
+  renderChat();
+  $("#askInput").focus();
+}
+
+/* ---------- Диалоги ---------- */
 
 function alsoList() {
   // Обследования из плана, которые входят в профосмотр и диспансеризацию.
   // Отмечены по умолчанию те, что сейчас нужно пройти: обычно их и делают за этот визит.
   const seen = new Set();
   const items = (S.plan.items || []).filter((i) => !BUNDLES.includes(i.test) && !seen.has(i.test) && seen.add(i.test));
-  $("#mAlsoList").innerHTML = items.map((i) => `<label><input type="checkbox" value="${esc(i.test)}" ${i.status !== "actual" || i.todo_this_year ? "checked" : ""}> ${esc(i.title)}</label>`).join("");
-  $("#mAlso").classList.toggle("show", !S.editId && BUNDLES.includes($("#mTest").value) && items.length > 0);
+  $("#mAlsoList").innerHTML = items.map((i) => `<label><input type="checkbox" value="${esc(i.test)}" ${needed(i) ? "checked" : ""}> ${esc(i.title)}</label>`).join("");
+  $("#mAlso").hidden = !(!S.editId && BUNDLES.includes($("#mTest").value) && items.length > 0);
 }
 
 function openMark(test, record) {
   S.editId = record ? record.id : null;
   const selected = record ? record.test : test;
   $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === selected ? "selected" : ""}>${esc(t.title)}</option>`).join("");
-  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить обследование или прививку";
+  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить пройденным";
   $("#mDate").value = record ? record.date : S.plan.today;
   $("#mDate").max = S.plan.today;
   $("#mResult").value = record ? record.result || "" : "";
   $("#mFile").value = "";
-  $("#mFileRow").style.display = record ? "none" : "";
+  $("#mFileRow").hidden = !!record;
   alsoList();
   $("#markDialog").showModal();
 }
@@ -749,13 +1199,13 @@ function openMark(test, record) {
 function openPrep(test) {
   const t = S.tests.find((x) => x.test === test);
   if (!t || !t.prep) return toast("Для этого обследования особой подготовки нет");
-  const list = (arr) => `<ul style="margin:4px 0 12px;padding-left:20px">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
-  $("#prepBody").innerHTML = `<h2 style="margin-top:0">Как подготовиться: ${esc(t.title)}</h2>
+  const list = (arr) => `<ul style="margin:4px 0 14px;padding-left:20px">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  $("#prepBody").innerHTML = `<h2>Как подготовиться: ${esc(t.title)}</h2>
     <b>До визита</b>${list(t.prep.before)}
     <b>Взять с собой</b>${list(t.prep.bring)}
-    <p class="muted" style="font-size:13px">${esc(t.prep.note)}</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-      <button type="button" class="btn ghost" data-closeprep>Закрыть</button>
+    <p class="muted small">${esc(t.prep.note)}</p>
+    <div class="sheet-actions">
+      <button type="button" class="btn quiet" data-close>Закрыть</button>
       <button type="button" class="btn" data-mark="${esc(t.test)}">Отметить пройденным</button>
     </div>`;
   $("#prepDialog").showModal();
@@ -767,8 +1217,22 @@ function openLetter(test) {
   S.letterTest = test;
   $("#lTitle").textContent = it.title;
   $("#lDate").value = S.plan.today; $("#lDate").max = S.plan.today;
-  $("#lResult").style.display = "none"; $("#lCopy").style.display = "none"; $("#lPrint").style.display = "none";
+  ["lResult", "lCopy", "lPrint"].forEach((id) => ($("#" + id).hidden = true));
   $("#letterDialog").showModal();
+}
+
+function openDemo() {
+  const c = S.plan.consent;
+  $("#demoWarn").hidden = !(c && !c.demo);
+  $("#demoList").innerHTML = S.demos.map((d) => `<button class="demo-card" data-demo="${esc(d.id)}"><b>${esc(d.name)}</b><span>${esc(d.description)}</span></button>`).join("");
+  $("#demoDialog").showModal();
+}
+
+async function loadDemo(id) {
+  const c = S.plan.consent;
+  if (c && !c.demo && !confirm("Демо-пациент заменит ваши данные на этом компьютере. Продолжить?")) return;
+  S.plan = await api("POST", "/api/demo", { id }); S.chat = []; S.risen = false;
+  go("home"); toast("Открыт демо-пациент");
 }
 
 function printText(text) {
@@ -792,103 +1256,152 @@ function readFile(file) {
   });
 }
 
+async function copyText(area) {
+  try { await navigator.clipboard.writeText(area.value); }
+  catch { area.select(); document.execCommand("copy"); }
+  toast("Текст скопирован: вставьте его в документ и впишите ФИО и номер полиса");
+}
+
+async function openArticle(slug) {
+  S.article = await api("GET", "/api/wiki/" + encodeURIComponent(slug));
+  S.tab = "wiki"; render(); window.scrollTo(0, 0);
+}
+
+async function loadWikiList(q) {
+  S.wikiQuery = q || "";
+  S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
+}
+
+function setTheme(v) {
+  try { v === "system" ? localStorage.removeItem("theme") : localStorage.setItem("theme", v); } catch (e) {}
+  if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  render();
+}
+
+/* ---------- События ---------- */
+
+const NAV_KEYS = ["article", "tab", "goto", "wiki", "mark", "demo", "ai", "open", "demoOpen", "ask"];
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep],[data-letter],[data-displetter],[data-deldispute]");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-prep],[data-close],[data-letter],[data-displetter],[data-deldispute],[data-ai],[data-open],[data-mode],[data-demo-open],[data-exit-demo],[data-theme-set],[data-sex],[data-obback],#disputeBtn");
   if (!t) return;
-  if ($("#prepDialog").open && (t.dataset.mark || t.dataset.closeprep !== undefined)) $("#prepDialog").close();
-  if (t.dataset.closeprep !== undefined) return;
-  if (t.dataset.prep) return openPrep(t.dataset.prep);
-  if (t.dataset.letter) { e.preventDefault(); return openLetter(t.dataset.letter); }
-  if (t.dataset.deldispute) {
-    if (!confirm("Удалить отметку о приписке?")) return;
-    S.plan = await api("DELETE", "/api/disputes/" + t.dataset.deldispute); render(); return toast("Удалено, план пересчитан");
+  const ds = t.dataset;
+  // Переход из диалога закрывает диалог (кроме вопросов внутри AIbert).
+  const dlg = t.closest("dialog");
+  if (dlg && (ds.close !== undefined || NAV_KEYS.some((k) => ds[k] !== undefined) && !(dlg.id === "aiDialog" && ds.ask !== undefined))) dlg.close();
+  if (ds.close !== undefined) return;
+  if (t.tagName === "A" && t.getAttribute("href") === "#") e.preventDefault();
+  if (ds.prep) return openPrep(ds.prep);
+  if (ds.letter) return openLetter(ds.letter);
+  if (ds.ai !== undefined) return openAI(ds.ai);
+  if (ds.ask) return ask(ds.ask);
+  if (ds.open) return openItem(ds.open);
+  if (ds.mode) { const [k, v] = ds.mode.split(":"); S.mode[k] = v; return render(); }
+  if (ds.demoOpen !== undefined) return openDemo();
+  if (ds.demo) return loadDemo(ds.demo);
+  if (ds.themeSet) return setTheme(ds.themeSet);
+  if (ds.sex) { S.ob.sex = ds.sex; S.ob.step = 3; return render(); }
+  if (ds.obback !== undefined) { S.ob.step = Math.max(1, S.ob.step - 1); return render(); }
+  if (t.id === "disputeBtn") {
+    $("#dTest").innerHTML = S.tests.map((x) => `<option value="${esc(x.test)}">${esc(x.title)}</option>`).join("");
+    $("#dDate").value = ""; $("#dDate").max = S.plan.today; $("#dComment").value = "";
+    return $("#disputeDialog").showModal();
   }
-  if (t.dataset.displetter) {
+  if (ds.deldispute) {
+    if (!confirm("Удалить отметку о приписке?")) return;
+    S.plan = await api("DELETE", "/api/disputes/" + ds.deldispute); render(); return toast("Удалено, план пересчитан");
+  }
+  if (ds.displetter) {
     try {
-      const r = await api("POST", "/api/letter", { kind: "dispute", id: t.dataset.displetter });
+      const r = await api("POST", "/api/letter", { kind: "dispute", id: ds.displetter });
       $("#tTitle").textContent = "Заявление в страховую о приписке"; $("#tText").value = r.text; return $("#textDialog").showModal();
     } catch (err) { return toast(err.message); }
   }
-  if (t.dataset.article && $("#letterDialog").open) $("#letterDialog").close();
-  if (t.dataset.delmetric) {
+  if (ds.delmetric) {
     if (!confirm("Удалить измерение?")) return;
-    S.plan = await api("DELETE", "/api/metrics/" + t.dataset.delmetric); return render();
+    S.plan = await api("DELETE", "/api/metrics/" + ds.delmetric); return render();
   }
-  if (t.dataset.overdue !== undefined) {
-    if (!e.target.closest("summary")) return;
-    e.preventDefault(); S.openOverdue = !S.openOverdue; return render();
+  if (ds.edit) return openMark(null, S.plan.history.find((r) => r.id === ds.edit));
+  if (ds.exitDemo !== undefined) {
+    S.plan = await api("POST", "/api/reset"); S.chat = []; S.ob = { step: 1 }; go("home"); return toast("Демо закрыто");
   }
-  if (t.dataset.edit) return openMark(null, S.plan.history.find((r) => r.id === t.dataset.edit));
-  if (t.dataset.demo) return loadDemo(t.dataset.demo);
-  if (t.dataset.reset !== undefined) {
+  if (ds.reset !== undefined) {
     if (!confirm("Отозвать согласие и удалить профиль, отметки, файлы и журнал вопросов? Это нельзя отменить.")) return;
-    S.plan = await api("POST", "/api/reset"); S.chat = []; $("#demo").value = ""; go("home"); return toast("Данные удалены");
+    S.plan = await api("POST", "/api/reset"); S.chat = []; S.ob = { step: 1 }; go("home"); return toast("Данные удалены");
   }
-  if (t.dataset.ask) return ask(t.dataset.ask);
-  if (t.dataset.article) { e.preventDefault(); return openArticle(t.dataset.article); }
-  if (t.dataset.wikilist) { e.preventDefault(); S.article = null; return go("wiki"); }
-  if (t.dataset.tab) { if (t.dataset.tab === "wiki") S.article = null; return go(t.dataset.tab); }
-  if (t.dataset.goto) { e.preventDefault(); return go(t.dataset.goto); }
-  if (t.dataset.mark) { e.preventDefault(); return openMark(t.dataset.mark); }
-  if (t.dataset.wiki) return openArticle(t.dataset.wiki);
-  if (t.dataset.del && confirm("Удалить запись?")) {
-    S.plan = await api("DELETE", "/api/history/" + t.dataset.del); render(); toast("Запись удалена, план пересчитан");
+  if (ds.article) return openArticle(ds.article);
+  if (ds.wikilist) { S.article = null; return go("wiki"); }
+  if (ds.tab) { e.preventDefault(); if (ds.tab === "wiki") S.article = null; return go(ds.tab); }
+  if (ds.goto) return go(ds.goto);
+  if (ds.mark !== undefined) return openMark(ds.mark);
+  if (ds.wiki) return openArticle(ds.wiki);
+  if (ds.del && confirm("Удалить запись?")) {
+    S.plan = await api("DELETE", "/api/history/" + ds.del); render(); toast("Запись удалена, план пересчитан");
   }
 });
 
-async function ask(question) {
-  question = question.trim();
-  if (!question) return;
-  S.chat.push({ role: "user", text: question });
-  S.chat.push({ role: "bot", answer: "Думаю…" });
-  go("assistant");
-  try {
-    const r = await api("POST", "/api/ask", { question });
-    S.chat[S.chat.length - 1] = Object.assign({ role: "bot" }, r);
-  } catch (err) {
-    S.chat[S.chat.length - 1] = { role: "bot", answer: "Не получилось ответить: " + err.message };
+// Свёрнутая группа «Просрочено» помнит своё состояние между перерисовками.
+document.addEventListener("toggle", (e) => {
+  if (e.target.id === "grpOverdue") {
+    S.openOverdue = e.target.open;
+    const l = e.target.querySelector("summary .linkbtn"); if (l) l.textContent = e.target.open ? "Свернуть" : "Показать";
   }
-  render();
-  const log = $("#chatLog"); if (log) log.lastElementChild.scrollIntoView({ block: "nearest" });
-  const input = $("#askInput"); if (input) input.focus();
-}
+}, true);
 
 document.addEventListener("submit", async (e) => {
-  if (e.target.id === "askForm") { e.preventDefault(); return ask($("#askInput").value); }
-  if (e.target.id === "welcomeForm") {
+  const id = e.target.id;
+  if (id === "askForm") { e.preventDefault(); return ask($("#askInput").value); }
+  if (id === "obForm1") { e.preventDefault(); S.ob.birth = $("#wBirth").value; S.ob.step = 2; return render(); }
+  if (id === "welcomeForm") {
     e.preventDefault();
     try {
       S.plan = await api("POST", "/api/profile", { name: $("#wName").value.trim(), consent: $("#wConsent").checked,
-        profile: { birth_date: $("#wBirth").value, sex: $("#wSex").value } });
-      return go("home");
+        profile: { birth_date: S.ob.birth, sex: S.ob.sex } });
+      S.risen = false; return go("home");
     } catch (err) { return toast(err.message); }
   }
-  if (e.target.id === "metricForm") {
+  if (id === "metricForm") {
     e.preventDefault();
+    const before = litSet();
     try {
       S.plan = await api("POST", "/api/metrics", { kind: $("#mtKind").value, date: $("#mtDate").value,
         value: $("#mtValue").value, value2: $("#mtValue2").value });
-      const kind = $("#mtKind").value; render(); $("#mtKind").value = kind; metricKindChanged(); return toast("Сохранено");
+      const kind = $("#mtKind").value; const n = ignite(before); render(); $("#mtKind").value = kind; metricKindChanged();
+      return toast(n ? `Сохранено. Зажглось лучей: ${n}` : "Сохранено");
     } catch (err) { return toast(err.message); }
   }
-  if (e.target.id !== "profileForm") return;
+  if (id !== "profileForm") return;
   e.preventDefault();
   const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
+  const before = litSet();
   try {
     S.plan = await api("POST", "/api/profile", { name: $("#pName").value, consent: !!($("#pConsent") && $("#pConsent").checked), profile: {
       birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions } });
-    render(); toast("Профиль сохранён, план пересчитан");
+    const n = ignite(before); render(); toast(n ? `Профиль сохранён. Зажглось лучей: ${n}` : "Профиль сохранён, план пересчитан");
   } catch (err) { toast(err.message); }
 });
 
+function litSet() { return new Set(((S.plan.sun || {}).rays || []).filter((r) => r.lit).map((r) => r.id)); }
+function ignite(before) {
+  // Лучи, которые зажглись после сохранения, вспыхивают на солнце.
+  const now = ((S.plan.sun || {}).rays || []).filter((r) => r.lit && !before.has(r.id)).map((r) => r.id);
+  S.ignite = new Set(now);
+  return now.length;
+}
+
 function metricKindChanged() {
   const pressure = $("#mtKind").value === "pressure";
-  $("#mtValue2Box").style.display = pressure ? "" : "none";
+  $("#mtValue2Box").hidden = !pressure;
   $("#mtValue2").required = pressure;
   $("#mtValueLabel").textContent = pressure ? "Верхнее" : "Значение";
   $("#mtValue").placeholder = pressure ? "например, 120" : "например, 5,2";
 }
-document.addEventListener("change", (e) => { if (e.target.id === "mtKind") metricKindChanged(); });
+document.addEventListener("change", (e) => {
+  if (e.target.id === "mtKind") metricKindChanged();
+  if (e.target.id === "bigFont") {
+    try { e.target.checked ? localStorage.setItem("bigfont", "1") : localStorage.removeItem("bigfont"); } catch (err) {}
+    if (e.target.checked) document.documentElement.dataset.big = "1"; else delete document.documentElement.dataset.big;
+  }
+});
 
 let wikiTimer;
 document.addEventListener("input", (e) => {
@@ -905,50 +1418,41 @@ $("#markForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const body = { test: $("#mTest").value, date: $("#mDate").value, result: $("#mResult").value };
   const file = $("#mFile").files[0];
+  const before = litSet();
   try {
     if (S.editId) {
       S.plan = await api("PUT", "/api/history/" + S.editId, body);
       $("#markDialog").close(); render(); return toast("Запись исправлена, сроки пересчитаны");
     }
-    if ($("#mAlso").classList.contains("show")) {
-      body.also = [...document.querySelectorAll("#mAlsoList input:checked")].map((i) => i.value);
-    }
+    if (!$("#mAlso").hidden) body.also = [...document.querySelectorAll("#mAlsoList input:checked")].map((i) => i.value);
     if (file) {
       if (file.size > 10 * 1024 * 1024) throw new Error("Файл больше 10 МБ");
       body.file = await readFile(file);
     }
     S.plan = await api("POST", "/api/history", body);
-    $("#markDialog").close(); render(); toast("Сохранено, сроки пересчитаны");
+    const n = ignite(before);
+    $("#markDialog").close(); render();
+    toast(n ? `Отмечено. Зажглось лучей: ${n}` : "Отмечено, сроки пересчитаны");
   } catch (err) { toast(err.message); }
 });
 $("#mCancel").onclick = () => $("#markDialog").close();
+$("#mTest").onchange = alsoList;
 $("#letterForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
     const r = await api("POST", "/api/letter", { test: S.letterTest, reason: $("#lReason").value, date: $("#lDate").value,
       addressee: document.querySelector("input[name=lTo]:checked").value });
     $("#lText").value = r.text;
-    ["lResult", "lCopy", "lPrint"].forEach((id) => ($("#" + id).style.display = ""));
+    ["lResult", "lCopy", "lPrint"].forEach((id) => ($("#" + id).hidden = false));
   } catch (err) { toast(err.message); }
 });
 $("#lClose").onclick = () => $("#letterDialog").close();
 $("#lPrint").onclick = () => printText($("#lText").value);
-async function copyText(area) {
-  try { await navigator.clipboard.writeText(area.value); }
-  catch { area.select(); document.execCommand("copy"); }
-  toast("Текст скопирован: вставьте его в документ и впишите ФИО и номер полиса");
-}
 $("#lCopy").onclick = () => copyText($("#lText"));
 $("#tCopy").onclick = () => copyText($("#tText"));
 $("#tPrint").onclick = () => printText($("#tText").value);
 $("#tClose").onclick = () => $("#textDialog").close();
 $("#dCancel").onclick = () => $("#disputeDialog").close();
-document.addEventListener("click", (e) => {
-  if (e.target.id !== "disputeBtn") return;
-  $("#dTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}">${esc(t.title)}</option>`).join("");
-  $("#dDate").value = ""; $("#dDate").max = S.plan.today; $("#dComment").value = "";
-  $("#disputeDialog").showModal();
-});
 $("#disputeForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
@@ -956,17 +1460,18 @@ $("#disputeForm").addEventListener("submit", async (e) => {
     $("#disputeDialog").close(); render(); toast("Сохранено: эта запись не учитывается в плане");
   } catch (err) { toast(err.message); }
 });
-$("#mTest").onchange = alsoList;
-$("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
-$("#demo").onchange = () => { if ($("#demo").value) loadDemo($("#demo").value); };
+// Клик по затемнению вокруг диалога закрывает его.
+document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (e) => { if (e.target === d) d.close(); }));
+// Тема «как в системе» следит за сменой темы в системе.
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => S.plan && render());
 
 (async function init() {
+  try { S.risen = sessionStorage.getItem("risen") === "1"; } catch (e) {}
   let info;
   [S.tests, S.demos, S.plan, , info, S.consent] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant"), api("GET", "/api/consent")]);
   S.llm = info.llm_enabled;
   S.llmStatus = info.status || [];
-  $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");
   render();
 })();
 </script>
