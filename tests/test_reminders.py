@@ -57,14 +57,14 @@ class IcsTest(unittest.TestCase):
         self.text = self.ics.replace("\r\n ", "")
 
     def test_events_and_alarms(self):
-        dated = [i for i in self.plan["items"] if i["next_due"]]
+        dated = [i for i in self.plan["items"] + self.plan["vaccines"] if i["next_due"] and not i["conditional"]]
         grouped = [i for i in dated if i["status"] in ("overdue", "no_data")]
         n = len(dated) - len(grouped) + 1
         self.assertEqual(self.ics.count("BEGIN:VEVENT"), n)
         self.assertEqual(self.ics.count("BEGIN:VALARM"), 2 * n)
 
     def test_overdue_grouped_a_week_ahead(self):
-        self.assertIn("SUMMARY:Записаться в поликлинику: 9 обследований", self.text)
+        self.assertIn("SUMMARY:Записаться в поликлинику: 10 обследований", self.text)
         self.assertIn("• ЭКГ в покое — срок 10.05.2024", self.text)
         self.assertIn("Нет отметки о прохождении:\\n• Измерение внутриглазного давления", self.text)
         self.assertNotIn("DTSTART;VALUE=DATE:2024", self.ics)
@@ -73,6 +73,7 @@ class IcsTest(unittest.TestCase):
     def test_nothing_overdue_no_group_event(self):
         plan = demo_plan("anna")
         plan["items"] = [i for i in plan["items"] if i["status"] not in ("overdue", "no_data")]
+        plan["vaccines"] = []
         self.assertNotIn("Записаться в поликлинику", to_ics(plan, now=NOW))
 
     def test_format(self):
@@ -82,7 +83,7 @@ class IcsTest(unittest.TestCase):
         self.assertIn("Бесплатно по полису ОМС", self.text)
         demo = json.loads((DEMO / "anna.json").read_text(encoding="utf-8"))
         plan = build_plan(demo["profile"], demo["history"] + [{"test": "mammography", "date": "2026-01-15"}], today=TODAY)
-        self.assertIn("прил. 2\\, п. 1б приказа Минздрава № 404н", to_ics(plan, now=NOW).replace("\r\n ", ""))
+        self.assertIn("прил. 2\\, п. 1б приказа № 404н", to_ics(plan, now=NOW).replace("\r\n ", ""))
 
 
 if __name__ == "__main__":

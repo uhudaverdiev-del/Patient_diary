@@ -18,6 +18,7 @@ from diary.privacy import consent_record, detect_file_type
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "data" / "demo"
 MAX_FILE_BYTES = 10 * 1024 * 1024
+KNOWN_CONDITIONS = ("mastectomy", "hysterectomy", "flu_risk")
 NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
 
@@ -49,7 +50,8 @@ class Storage:
             value = profile.get(key)
             if value not in (None, ""):
                 clean[key] = str(value)
-        clean["conditions"] = [str(c) for c in profile.get("conditions") or []]
+        # Принимаем только известные отметки: всё остальное в профиль не попадает.
+        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in (profile.get("conditions") or [])]
         state["profile"] = clean
         if name is not None:
             state["name"] = str(name)

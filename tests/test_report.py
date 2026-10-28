@@ -51,3 +51,14 @@ class ReportTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VaccinesInReportTest(unittest.TestCase):
+    def test_vaccines_block_and_questions(self):
+        plan = demo_plan("anna")
+        questions = " ".join(doctor_questions(plan))
+        self.assertIn("приказ № 1122н", questions)
+        self.assertIn("проверить по медкарте, нужны ли мне прививки", questions)
+        html = render_report(plan, {})
+        self.assertIn("Прививки (2)", html)
+        self.assertIn("приказа № 1122н", html)

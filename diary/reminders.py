@@ -16,13 +16,19 @@ def _days_left(item, today):
     return (date.fromisoformat(item["next_due"]) - today).days
 
 
+def due_items(plan):
+    """Обследования и обязательные прививки. Прививки «если не прививались» решает врач:
+    в напоминания и календарь они не попадают."""
+    return plan["items"] + [v for v in plan.get("vaccines", []) if not v.get("conditional")]
+
+
 def reminders(plan, within_days=DUE_SOON_DAYS):
     """Что подходит по сроку: всё просроченное и то, что наступит в ближайшие within_days дней."""
     if not plan.get("ready"):
         return []
     today = date.fromisoformat(plan["today"])
     result = []
-    for item in plan["items"]:
+    for item in due_items(plan):
         if not item.get("next_due"):
             continue
         days = _days_left(item, today)
@@ -119,7 +125,7 @@ def to_ics(plan, now=None):
     if plan.get("ready"):
         today = date.fromisoformat(plan["today"])
         stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
-        items = [i for i in plan["items"] if i.get("next_due")]
+        items = [i for i in due_items(plan) if i.get("next_due")]
         overdue = [i for i in items if i["status"] == "overdue"]
         no_data = [i for i in items if i["status"] == "no_data"]
         if overdue or no_data:
@@ -130,7 +136,7 @@ def to_ics(plan, now=None):
             if no_data:
                 body.append("Нет отметки о прохождении:")
                 body += [f"• {i['title']}" for i in no_data]
-            body.append("Обычно всё это делается за один визит на профосмотр или диспансеризацию. "
+            body.append("Обычно обследования делаются за один визит на профосмотр или диспансеризацию. "
                         "Запишитесь к терапевту по месту прикрепления или через Госуслуги. "
                         "Бесплатно по полису ОМС.")
             lines += _event(f"overdue-{plan['today']}", today + timedelta(days=OVERDUE_SHIFT_DAYS),
@@ -146,7 +152,7 @@ def to_ics(plan, now=None):
                 description.append("Бесплатно по полису ОМС в поликлинике по месту прикрепления.")
             src = item.get("source") or {}
             if src.get("clause"):
-                description.append(f"Основание: {src['clause']} приказа Минздрава № 404н.")
+                description.append(f"Основание: {src['clause']} {src.get('short') or 'приказа № 404н'}.")
             day = max(date.fromisoformat(item["next_due"]), today)
             lines += _event(f"{item['id']}-{item['next_due']}", day, item["title"],
                             "\n".join(description), stamp, url=src.get("url"))

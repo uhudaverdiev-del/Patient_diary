@@ -10,6 +10,7 @@ from html import escape
 CONDITIONS = {
     "mastectomy": "перенесена мастэктомия",
     "hysterectomy": "перенесена экстирпация (удаление) матки",
+    "flu_risk": "я в группе, которой положена ежегодная прививка от гриппа",
 }
 SEX = {"female": "женский", "male": "мужской"}
 
@@ -41,6 +42,15 @@ def doctor_questions(plan):
     if unknown:
         questions.append("Не помню, когда проходил(а): " + "; ".join(_lower(i["title"]) for i in unknown)
                          + ". Прошу проверить по медкарте.")
+    vaccines = plan.get("vaccines") or []
+    due_vac = [v for v in vaccines if not v.get("conditional") and v["status"] != "actual"]
+    if due_vac:
+        questions.append("По национальному календарю прививок (приказ № 1122н) мне пора сделать: "
+                         + "; ".join(_lower(v["title"]) for v in due_vac) + ".")
+    maybe_vac = [v for v in vaccines if v.get("conditional") and v["status"] != "actual"]
+    if maybe_vac:
+        questions.append("Прошу проверить по медкарте, нужны ли мне прививки: "
+                         + "; ".join(_lower(v["title"]) for v in maybe_vac) + ".")
     profile = plan.get("profile", {})
     if profile.get("smoking") == "Курит":
         questions.append("Я курю: хочу обсудить, как бросить, и узнать свой сердечно-сосудистый риск.")
@@ -80,15 +90,16 @@ def render_report(plan, test_titles):
 
     def rows(chosen):
         return "".join(
-            f"<tr><td><b>{_e(i['title'])}</b><br><small>{_e(i['who'])}</small></td>"
+            f"<tr><td><b>{_e(i['title'])}</b>"
+            f"{' · ' + _e(i['status_label']) if i.get('kind') == 'vaccine' else ''}<br><small>{_e(i['who'])}</small></td>"
             f"<td>{_fmt(i['last_date'])}</td><td>{_fmt(i['next_due'])}</td>"
-            f"<td><small>{_e(i['source']['clause'])} приказа № 404н</small></td></tr>"
+            f"<td><small>{_e(i['source']['clause'])} {_e(i['source'].get('short') or 'приказа № 404н')}</small></td></tr>"
             for i in chosen)
 
-    def table(title, chosen, cls):
+    def table(title, chosen, cls, what="Обследование"):
         if not chosen:
             return ""
-        return (f"<h2 class='{cls}'>{title} ({len(chosen)})</h2><table><thead><tr><th>Обследование</th>"
+        return (f"<h2 class='{cls}'>{title} ({len(chosen)})</h2><table><thead><tr><th>{what}</th>"
                 f"<th>Последний раз</th><th>Срок</th><th>Основание</th></tr></thead><tbody>{rows(chosen)}</tbody></table>")
 
     history = sorted(plan.get("history", []), key=lambda r: r["date"], reverse=True)
@@ -114,6 +125,7 @@ def render_report(plan, test_titles):
 {table('Скоро необходимо пройти', soon, 'soon')}
 {table('Нет отметки о прохождении', no_data, 'no_data')}
 {table(f'Ещё в {today.year} году', this_year, 'actual')}
+{table('Прививки', plan.get('vaccines') or [], 'vaccines', 'Прививка')}
 <h2>Уже пройдено</h2>
 {f'<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th></tr></thead><tbody>{history_html}</tbody></table>'
  if history else '<p>Отметок о пройденных обследованиях пока нет.</p>'}

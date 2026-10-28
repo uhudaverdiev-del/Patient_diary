@@ -162,14 +162,14 @@
 <main id="view"></main>
 
 <footer>
-  План строится по приказу Минздрава России от 27.04.2021 № 404н. Сервис не заменяет консультацию врача.
+  План строится по приказам Минздрава России от 27.04.2021 № 404н (обследования) и от 06.12.2021 № 1122н (прививки). Сервис не заменяет консультацию врача.
   <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a>.
   Дата расчёта: <input type="date" id="today" style="width:auto;padding:2px 6px"> <span id="todayHint"></span>
 </footer>
 
 <dialog id="markDialog">
   <form class="card" id="markForm" method="dialog">
-    <h2 style="margin-top:0">Отметить пройденное обследование</h2>
+    <h2 style="margin-top:0">Отметить обследование или прививку</h2>
     <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
     <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
     <div class="row" id="mAlso"><label>Что из этого вам сделали в тот же день</label>
@@ -193,6 +193,9 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU") : "—";
 const SEX = { female: "Женский", male: "Мужской" };
 const CONDITIONS = { mastectomy: "Перенесена мастэктомия", hysterectomy: "Перенесена экстирпация (удаление) матки" };
+// Прививки «если не прививались» решает врач по медкарте: в календарь, напоминания и «в первую очередь» не ставим.
+const dueVaccines = (plan) => (plan.vaccines || []).filter((v) => !v.conditional);
+const calendarItems = (plan) => plan.items.concat(dueVaccines(plan));
 
 function todayParam(path) { const v = $("#today").value; return v ? (path.includes("?") ? "&" : "?") + "today=" + v : ""; }
 
@@ -221,17 +224,27 @@ function itemHtml(it, compact) {
   return `<div class="card item ${it.status}">
     <div>
       <h3>${esc(it.title)} <span class="pill ${it.status}">${esc(it.status_label)}</span></h3>
-      <div class="muted" style="font-size:14px">Кому положено: ${esc(it.who)}. Бесплатно по ОМС.</div>
+      <div class="muted" style="font-size:14px">Кому положено: ${esc(it.who)}. ${it.kind === "vaccine" ? "Бесплатно по национальному календарю прививок." : "Бесплатно по ОМС."}</div>
       <div class="dates"><span>Последнее: <b>${fmt(it.last_date)}</b></span><span>Следующее: <b>${fmt(it.next_due)}</b></span></div>
       ${it.notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}
       ${compact ? "" : `${it.includes ? `<div class="muted" style="font-size:14px">Включает: ${esc(it.includes)}</div>` : ""}
-      <div class="src muted">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} приказа № 404н</a></div>`}
+      <div class="src muted">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} ${esc(it.source.short || "приказа № 404н")}</a></div>`}
     </div>
     <div class="actions">
       <button class="btn" data-mark="${esc(it.test)}">Пройдено</button>
       ${compact ? "" : `<button class="btn ghost" data-wiki="${esc(it.wiki)}">Зачем это?</button>`}
     </div>
   </div>`;
+}
+
+function vaccinesHtml(plan) {
+  const list = plan.vaccines || [];
+  if (!list.length) return "";
+  return `<h2>Прививки (${list.length})</h2>
+    <div class="muted" style="margin-bottom:10px">По национальному календарю прививок, бесплатно в поликлинике по месту прикрепления.
+      «Если не прививались»: нужна, только если в детстве прививки не было или была одна. Это видно в медкарте, спросите терапевта.
+      <a href="#" data-article="vaccination">Подробнее о прививках</a></div>
+    <div class="grid">${list.map((i) => itemHtml(i)).join("")}</div>`;
 }
 
 function monthTitle(d) {
@@ -396,7 +409,7 @@ const VIEWS = {
     if (isEmpty(plan)) return welcomeHtml();
     if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
     const s = plan.summary;
-    const next = plan.items.filter((i) => i.status !== "actual" || i.todo_this_year).slice(0, 5);
+    const next = calendarItems(plan).filter((i) => i.status !== "actual" || i.todo_this_year).slice(0, 5);
     return `<h1>${name}</h1>
       <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
       ${problemsHtml(plan)}
@@ -436,7 +449,8 @@ const VIEWS = {
         if (st === "overdue") return `<details class="group" ${S.openOverdue ? "open" : ""} data-overdue>
           <summary>${title} (${items.length})<span>${S.openOverdue ? "свернуть" : "показать"}</span></summary>${list}</details>`;
         return `<h2>${title} (${items.length})</h2>${list}`;
-      }).join("")}`;
+      }).join("")}
+      ${vaccinesHtml(plan)}`;
   },
 
   calendar(plan) {
@@ -446,15 +460,16 @@ const VIEWS = {
     for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
     const key = (d) => d.getFullYear() * 12 + d.getMonth();
     const chip = (i) => `<span class="chip ${i.status}" data-mark="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)} · ${fmt(i.next_due)}</small></span>`;
-    const overdue = plan.items.filter((i) => i.status === "overdue" || i.status === "no_data");
-    const later = plan.items.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
+    const all = calendarItems(plan);
+    const overdue = all.filter((i) => i.status === "overdue" || i.status === "no_data");
+    const later = all.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
     return `<h1>Календарь обследований</h1>
       <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
       <p>${icsButton()}</p>
       <div class="grid cal" style="margin-top:16px">
         ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
         ${months.map((m, idx) => {
-          const items = plan.items.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
+          const items = all.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
           return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
             ${items.length ? items.map(chip).join("") : `<span class="muted" style="font-size:13px">Ничего не запланировано</span>`}</div>`;
         }).join("")}
@@ -512,6 +527,10 @@ const VIEWS = {
           ${["", "Не курит", "Курит", "Бросил курить"].map((v) => `<option ${p.smoking === v ? "selected" : ""} value="${v}">${v || "не указано"}</option>`).join("")}</select></div>
         <div class="row checks"><label>Перенесённые операции, которые меняют план</label>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
+        <div class="row checks"><label>Прививки</label>
+          <label><input type="checkbox" value="flu_risk" ${conds.has("flu_risk") ? "checked" : ""}> Мне положена ежегодная прививка от гриппа</label>
+          <div class="muted" style="font-size:13px">Отметьте, если вы беременны, у вас хроническое заболевание (сердца, лёгких, диабет и т. п.),
+            вы работаете в медицине, образовании, торговле, на транспорте или в коммунальной сфере. После 60 лет прививка добавится сама.</div></div>
         ${plan.consent ? "" : consentHtml("pConsent")}
         <button class="btn" type="submit">Сохранить и пересчитать план</button>
       </form>
@@ -593,7 +612,7 @@ function openMark(test, record) {
   S.editId = record ? record.id : null;
   const selected = record ? record.test : test;
   $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === selected ? "selected" : ""}>${esc(t.title)}</option>`).join("");
-  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить пройденное обследование";
+  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить обследование или прививку";
   $("#mDate").value = record ? record.date : S.plan.today;
   $("#mDate").max = S.plan.today;
   $("#mResult").value = record ? record.result || "" : "";

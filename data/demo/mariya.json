@@ -30,6 +30,26 @@
     {
       "test": "hepatitis_c",
       "date": "2026-09-01"
+    },
+    {
+      "test": "vac_diphtheria",
+      "date": "2019-09-02",
+      "result": "АДС-М"
+    },
+    {
+      "test": "vac_hepb",
+      "date": "2002-03-15",
+      "result": "курс в детстве"
+    },
+    {
+      "test": "vac_measles",
+      "date": "2007-09-01",
+      "result": "две прививки в детстве"
+    },
+    {
+      "test": "vac_rubella",
+      "date": "2007-09-01",
+      "result": "две прививки в детстве"
     }
   ]
 }

@@ -29,9 +29,9 @@ MAX_BODY = 15 * 1024 * 1024
 def test_catalog(rules_data):
     """Список обследований для формы «Отметить прохождение»."""
     seen = {}
-    for rule in rules_data["rules"]:
+    for rule in rules_data["rules"] + rules_data.get("vaccines", []):
         seen.setdefault(rule["test"], {"test": rule["test"], "title": rule["title"], "who": []})
-        seen[rule["test"]]["who"].append(describe_rule(rule))
+        seen[rule["test"]]["who"].append(rule.get("who") or describe_rule(rule))
     for extra in rules_data.get("extra_tests", []):
         seen[extra["test"]] = {"test": extra["test"], "title": extra["title"], "who": [extra["who"]]}
     return list(seen.values())
