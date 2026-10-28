@@ -57,6 +57,9 @@
   .month.now { border-color: var(--accent); }
   .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
   .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 400; color: var(--muted); margin: 4px 0 12px; }
+  .consent input { width: auto; margin-top: 3px; flex: none; }
+  .privacy-note { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
   .demos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
   .demo-card { text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
   .demo-card:hover { border-color: var(--accent); }
@@ -128,6 +131,7 @@
 
 <footer>
   План строится по приказу Минздрава России от 27.04.2021 № 404н. Сервис не заменяет консультацию врача.
+  <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a>.
   Дата расчёта: <input type="date" id="today" style="width:auto;padding:2px 6px"> <span id="todayHint"></span>
 </footer>
 
@@ -137,7 +141,7 @@
     <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
     <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
     <div class="row"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
-    <div class="row"><label for="mFile">Файл (PDF или фото, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,image/*"></div>
+    <div class="row"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button type="button" class="btn ghost" id="mCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
@@ -147,7 +151,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false, llmStatus: [] };
+const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false, llmStatus: [], consent: {} };
 const QUICK = ["Что мне нужно пройти в этом году?", "Какие обследования просрочены?", "Зачем нужна маммография?", "Как получить выходной на работе для диспансеризации?"];
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -247,6 +251,28 @@ function isEmpty(plan) {
   return !p.birth_date && !p.sex && !(plan.history || []).length;
 }
 
+function consentHtml(id) {
+  return `<label class="consent"><input type="checkbox" id="${id}" required>
+    <span>${esc(S.consent.text || "")} <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a></span></label>`;
+}
+
+function myDataHtml(plan) {
+  const c = plan.consent;
+  const status = !c ? "Согласие на обработку данных не дано."
+    : c.demo ? "Сейчас открыт демо-пациент: это вымышленные данные."
+    : `Согласие на обработку данных о здоровье дано ${fmt(c.date)} (версия ${esc(c.version)}).`;
+  return `<h2>Мои данные</h2>
+    <div class="card" style="max-width:520px">
+      <p style="margin-top:0">${status} Данные хранятся только на этом компьютере. <a href="/privacy" target="_blank" rel="noopener">Как мы обрабатываем данные</a></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn ghost" href="/export.zip" download>Скачать все мои данные</a>
+        <button class="btn danger" type="button" data-reset>${c && !c.demo ? "Отозвать согласие и удалить данные" : "Удалить данные и начать заново"}</button>
+      </div>
+      <div class="muted" style="font-size:13px;margin-top:8px">Архив содержит профиль, отметки, загруженные файлы и журнал вопросов к нейросети.
+        Отзыв согласия сразу удаляет всё это с компьютера.</div>
+    </div>`;
+}
+
 function welcomeHtml() {
   return `<h1>Какие обследования вам положены бесплатно?</h1>
     <div class="muted">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация.
@@ -255,6 +281,7 @@ function welcomeHtml() {
       <div class="row"><label for="wName">Как к вам обращаться</label><input id="wName" placeholder="Например, Анна" autocomplete="given-name"></div>
       <div class="row"><label for="wBirth">Дата рождения *</label><input type="date" id="wBirth" required></div>
       <div class="row"><label for="wSex">Пол *</label><select id="wSex" required><option value="">— выбрать —</option><option value="female">женский</option><option value="male">мужской</option></select></div>
+      ${consentHtml("wConsent")}
       <button class="btn" type="submit">Показать мой план</button>
       <div class="muted" style="font-size:13px;margin-top:8px">Данные хранятся только на этом компьютере. Позже можно отметить пройденные обследования и уточнить профиль.</div>
     </form>
@@ -382,9 +409,10 @@ const VIEWS = {
           ${["", "Не курит", "Курит", "Бросил курить"].map((v) => `<option ${p.smoking === v ? "selected" : ""} value="${v}">${v || "не указано"}</option>`).join("")}</select></div>
         <div class="row checks"><label>Перенесённые операции, которые меняют план</label>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
+        ${plan.consent ? "" : consentHtml("pConsent")}
         <button class="btn" type="submit">Сохранить и пересчитать план</button>
       </form>
-      <p style="margin-top:16px"><button class="btn danger" type="button" data-reset>Удалить мои данные и начать заново</button></p>`;
+      ${myDataHtml(plan)}`;
   },
 
   assistant() {
@@ -400,6 +428,10 @@ const VIEWS = {
       <div class="muted">Отвечает по вашему плану и статьям Wiki, всегда со ссылками на источники. Не ставит диагнозы и не назначает лечение.
         Режим: <b>${S.llm ? "YandexGPT + проверка источников" : "локальный (без интернета)"}</b>
         ${!S.llm && S.llmStatus.length > 1 ? `<details class="muted"><summary>Почему не YandexGPT?</summary>${S.llmStatus.slice(1).map(esc).join("<br>")}</details>` : ""}</div>
+      <div class="privacy-note">${S.llm
+        ? "Вопрос отправляется в YandexGPT (Яндекс Облако, серверы в России) вместе с возрастом, полом и пунктами плана. Имя, дата рождения, результаты анализов и файлы не отправляются. Телефоны, e-mail, номера полиса, СНИЛС и паспорта вырезаются автоматически."
+        : "Вопросы обрабатываются на этом компьютере и никуда не отправляются."}
+        <a href="/privacy" target="_blank" rel="noopener">Подробнее</a></div>
       <div class="card chat" style="margin-top:16px">
         <div id="chatLog">${msgs || `<p class="muted">Спросите, например:</p>`}</div>
         <div class="quick">${QUICK.map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>
@@ -465,7 +497,7 @@ document.addEventListener("click", async (e) => {
   if (!t) return;
   if (t.dataset.demo) return loadDemo(t.dataset.demo);
   if (t.dataset.reset !== undefined) {
-    if (!confirm("Удалить профиль и все отметки? Это нельзя отменить.")) return;
+    if (!confirm("Отозвать согласие и удалить профиль, отметки, файлы и журнал вопросов? Это нельзя отменить.")) return;
     S.plan = await api("POST", "/api/reset"); S.chat = []; $("#demo").value = ""; go("home"); return toast("Данные удалены");
   }
   if (t.dataset.ask) return ask(t.dataset.ask);
@@ -502,7 +534,8 @@ document.addEventListener("submit", async (e) => {
   if (e.target.id === "welcomeForm") {
     e.preventDefault();
     try {
-      S.plan = await api("POST", "/api/profile", { name: $("#wName").value.trim(), profile: { birth_date: $("#wBirth").value, sex: $("#wSex").value } });
+      S.plan = await api("POST", "/api/profile", { name: $("#wName").value.trim(), consent: $("#wConsent").checked,
+        profile: { birth_date: $("#wBirth").value, sex: $("#wSex").value } });
       return go("home");
     } catch (err) { return toast(err.message); }
   }
@@ -510,7 +543,7 @@ document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
   try {
-    S.plan = await api("POST", "/api/profile", { name: $("#pName").value, profile: {
+    S.plan = await api("POST", "/api/profile", { name: $("#pName").value, consent: !!($("#pConsent") && $("#pConsent").checked), profile: {
       birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions } });
     render(); toast("Профиль сохранён, план пересчитан");
   } catch (err) { toast(err.message); }
@@ -547,7 +580,7 @@ $("#demo").onchange = () => { if ($("#demo").value) loadDemo($("#demo").value); 
 
 (async function init() {
   let info;
-  [S.tests, S.demos, S.plan, , info] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant")]);
+  [S.tests, S.demos, S.plan, , info, S.consent] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant"), api("GET", "/api/consent")]);
   S.llm = info.llm_enabled;
   S.llmStatus = info.status || [];
   $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");

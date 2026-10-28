@@ -12,9 +12,12 @@ import uuid
 from datetime import date
 from pathlib import Path
 
+from diary.privacy import consent_record, detect_file_type
+
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "data" / "demo"
 MAX_FILE_BYTES = 10 * 1024 * 1024
+NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
 
 class Storage:
@@ -25,7 +28,7 @@ class Storage:
 
     def load(self):
         if not self.state_path.exists():
-            return {"name": "", "profile": {}, "history": []}
+            return {"name": "", "profile": {}, "history": [], "consent": None}
         return json.loads(self.state_path.read_text(encoding="utf-8"))
 
     def save(self, state):
@@ -34,8 +37,12 @@ class Storage:
         tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self.state_path)
 
-    def save_profile(self, profile, name=None):
+    def save_profile(self, profile, name=None, consent=False):
         state = self.load()
+        if consent and not state.get("consent"):
+            state["consent"] = consent_record()
+        if not state.get("consent"):
+            raise ValueError(NO_CONSENT)
         clean = {}
         for key in ("birth_date", "sex", "region", "smoking"):
             value = profile.get(key)
@@ -54,6 +61,8 @@ class Storage:
         if not test or not record_date:
             raise ValueError("Укажите обследование и дату прохождения.")
         date.fromisoformat(record_date)
+        if not self.load().get("consent"):
+            raise ValueError(NO_CONSENT)
         entry = {
             "id": uuid.uuid4().hex[:12],
             "test": str(test),
@@ -90,7 +99,9 @@ class Storage:
         """Удаляет профиль, отметки и загруженные файлы."""
         if self.files_dir.exists():
             shutil.rmtree(self.files_dir)
-        state = {"name": "", "profile": {}, "history": []}
+        log = self.user_dir / "llm_log.jsonl"
+        log.unlink(missing_ok=True)
+        state = {"name": "", "profile": {}, "history": [], "consent": None}
         self.save(state)
         return state
 
@@ -104,7 +115,9 @@ class Storage:
         if self.files_dir.exists():
             shutil.rmtree(self.files_dir)
         history = [dict(r, id=uuid.uuid4().hex[:12]) for r in demo.get("history", [])]
-        state = {"name": demo.get("name", demo_name), "profile": demo["profile"], "history": history}
+        # демо-пациенты вымышленные: согласие не требуется, но отмечаем, что это демо
+        state = {"name": demo.get("name", demo_name), "profile": demo["profile"], "history": history,
+                 "consent": {"demo": True}}
         self.save(state)
         return state
 
@@ -112,9 +125,13 @@ class Storage:
         raw = base64.b64decode(upload["data"].split(",")[-1])
         if len(raw) > MAX_FILE_BYTES:
             raise ValueError("Файл больше 10 МБ.")
+        kind = detect_file_type(raw)
+        if kind is None:
+            raise ValueError("Можно загружать только PDF, JPG или PNG.")
         original = Path(str(upload.get("name") or "file")).name
-        safe = re.sub(r"[^\w.\-]", "_", original)[-80:] or "file"
-        stored = f"{record_id}_{safe}"
+        # расширение берём по содержимому, а не из имени: файл «отчёт.html» с PDF внутри сохранится как .pdf
+        stem = re.sub(r"[^\w\-]", "_", Path(original).stem)[-60:] or "file"
+        stored = f"{record_id}_{stem}.{kind}"
         self.files_dir.mkdir(parents=True, exist_ok=True)
         (self.files_dir / stored).write_bytes(raw)
         return {"name": original, "stored": stored, "size": len(raw)}

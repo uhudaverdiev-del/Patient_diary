@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from diary.assistant import Assistant
+from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules
 from diary.reminders import reminders, to_ics
 from diary.report import render_report
@@ -49,6 +50,7 @@ class App:
         plan["profile"] = state["profile"]
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
         plan["reminders"] = reminders(plan)
+        plan["consent"] = state.get("consent")
         return plan
 
     def report_page(self, today=None):
@@ -76,10 +78,12 @@ class App:
                 return 200, self.assistant.ask(body.get("question", ""), self.plan(today))
             if method == "GET" and path == "/api/assistant":
                 return 200, {"llm_enabled": self.assistant.llm_enabled, "status": self.assistant.status()}
+            if method == "GET" and path == "/api/consent":
+                return 200, {"version": CONSENT_VERSION, "text": CONSENT_TEXT}
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":
-                self.storage.save_profile(body.get("profile", {}), body.get("name"))
+                self.storage.save_profile(body.get("profile", {}), body.get("name"), consent=body.get("consent") is True)
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/history":
                 self.storage.add_record(body)
@@ -109,6 +113,10 @@ def make_handler(app):
             data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", content_type)
+            # базовая защита браузера: не угадывать тип файла, не встраивать страницы в чужие сайты
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
             for key, value in (headers or {}).items():
                 self.send_header(key, value)
             self.send_header("Content-Length", str(len(data)))
@@ -129,6 +137,12 @@ def make_handler(app):
                         return self._send(400, {"error": "Неверный формат запроса."})
                 code, payload = app.handle(method, url.path, parse_qs(url.query), body)
                 return self._send(code, payload)
+            if method == "GET" and url.path == "/privacy":
+                return self._send(200, policy_html().encode("utf-8"), "text/html; charset=utf-8")
+            if method == "GET" and url.path == "/export.zip":
+                return self._send(200, export_archive(app.storage), "application/zip",
+                                  {"Content-Disposition": 'attachment; filename="health-diary-data.zip"',
+                                   "Cache-Control": "no-store"})
             if method == "GET" and url.path == "/report":
                 today = (parse_qs(url.query).get("today") or [None])[0]
                 return self._send(200, app.report_page(today), "text/html; charset=utf-8")
@@ -140,8 +154,13 @@ def make_handler(app):
                 path = app.storage.file_path(url.path[len("/files/"):])
                 if path is None:
                     return self._send(404, {"error": "Файл не найден."})
-                ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-                return self._send(200, path.read_bytes(), ctype)
+                # тип по расширению, которое при загрузке выставлено по содержимому; иное — только скачивание
+                ctype = CONTENT_TYPES.get(path.suffix.lstrip(".").lower())
+                if ctype is None:
+                    return self._send(200, path.read_bytes(), "application/octet-stream",
+                                      {"Content-Disposition": "attachment"})
+                return self._send(200, path.read_bytes(), ctype,
+                                  {"Content-Security-Policy": "sandbox", "Cache-Control": "no-store"})
             if method == "GET":
                 name = "index.html" if url.path in ("/", "") else url.path.lstrip("/")
                 path = (WEB_DIR / name).resolve()

@@ -27,7 +27,7 @@ class ApiScenarioTest(unittest.TestCase):
         self.assertFalse(plan["ready"])
 
     def test_full_scenario(self):
-        code, plan = self.call("POST", "/api/profile", {"name": "Анна", "profile": {"birth_date": "1985-03-12", "sex": "female"}})
+        code, plan = self.call("POST", "/api/profile", {"name": "Анна", "consent": True, "profile": {"birth_date": "1985-03-12", "sex": "female"}})
         self.assertTrue(plan["ready"])
         mammo = next(i for i in plan["items"] if i["test"] == "mammography")
         self.assertEqual(mammo["status"], "soon")
