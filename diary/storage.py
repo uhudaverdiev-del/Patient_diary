@@ -21,6 +21,10 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_COMMENT = 500
 MAX_NAME = 100
 MAX_RESULT = 2000
+# «Моя поликлиника»: куда записываться. Необязательные поля, показываются рядом с главным шагом.
+CLINIC_FIELDS = ("clinic_name", "clinic_address", "clinic_phone")
+# Направление на второй этап диспансеризации: врач направил / второй этап пройден.
+SECOND_STAGE = ("referred", "done")
 KNOWN_CONDITIONS = ("mastectomy", "hysterectomy", "flu_risk")
 NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
@@ -49,10 +53,10 @@ class Storage:
         if not state.get("consent"):
             raise ValueError(NO_CONSENT)
         clean = {}
-        for key in ("birth_date", "sex", "region", "smoking"):
+        for key in ("birth_date", "sex", "region", "smoking") + CLINIC_FIELDS:
             value = profile.get(key)
             if value not in (None, ""):
-                clean[key] = str(value)[:MAX_NAME]
+                clean[key] = str(value).strip()[:MAX_NAME]
         # Принимаем только известные отметки: всё остальное в профиль не попадает.
         conditions = profile.get("conditions") if isinstance(profile.get("conditions"), list) else []
         clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in conditions]
@@ -79,6 +83,9 @@ class Storage:
             "date": record_date,
             "result": str(record.get("result") or ""),
         }
+        stage = _check_stage(record.get("second_stage"))
+        if stage:
+            entry["second_stage"] = stage
         upload = record.get("file")
         if upload and not isinstance(upload, dict):
             raise ValueError("Неверный формат файла.")
@@ -104,6 +111,12 @@ class Storage:
             raise ValueError("Неизвестное обследование.")
         date.fromisoformat(record_date)
         record.update(test=str(test), date=record_date, result=str(changes.get("result", record.get("result")) or ""))
+        if "second_stage" in changes:
+            stage = _check_stage(changes["second_stage"])
+            if stage:
+                record["second_stage"] = stage
+            else:
+                record.pop("second_stage", None)
         self.save(state)
         return record
 
@@ -221,6 +234,17 @@ class Storage:
 def _check_result(value):
     if value is not None and len(str(value)) > MAX_RESULT:
         raise ValueError(f"Результат длиннее {MAX_RESULT} символов: сократите текст или приложите файл.")
+
+
+def _check_stage(value):
+    """Отметка о втором этапе: пусто, «referred» (врач направил) или «done» (пройден)."""
+    if value in (None, "", False):
+        return None
+    if value is True:
+        return "referred"
+    if value not in SECOND_STAGE:
+        raise ValueError("Неверная отметка о втором этапе.")
+    return value
 
 
 def list_demos():

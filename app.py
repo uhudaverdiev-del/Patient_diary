@@ -28,7 +28,8 @@ from diary.report import render_report
 from diary.storage import Storage, list_demos
 from diary.wiki import load_wiki, search
 
-WEB_DIR = Path(__file__).resolve().parent / "web"
+ROOT = Path(__file__).resolve().parent
+WEB_DIR = ROOT / "web"
 MAX_BODY = 15 * 1024 * 1024
 OLDEST_RECORD = date(1900, 1, 1)
 # Дневник работает только на этом компьютере: другие адреса в заголовке Host означают,
@@ -52,6 +53,21 @@ def check_today(value):
         return date.fromisoformat(str(value)).isoformat()
     except ValueError:
         raise ValueError("Дата расчёта должна быть в формате ГГГГ-ММ-ДД.")
+
+
+def load_review(path=ROOT / "data" / "review.json"):
+    """Кто проверил медицинские тексты. Пустое имя значит, что проверки ещё не было."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {k: str(data.get(k) or "") for k in ("reviewer", "role", "date")}
+
+
+def second_stage(history, today):
+    """Направление на второй этап по последней диспансеризации: пока он не пройден, это главный шаг."""
+    disp = [r for r in history if r["test"] == "dispanserization" and r["date"] <= today]
+    last = max(disp, key=lambda r: r["date"], default=None)
+    if last and last.get("second_stage") == "referred":
+        return {"id": last["id"], "date": last["date"]}
+    return None
 
 
 def test_catalog(rules_data):
@@ -91,6 +107,8 @@ class App:
         plan["name"] = state.get("name", "")
         plan["profile"] = state["profile"]
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
+        plan["second_stage"] = second_stage(counted, plan["today"])
+        plan["review"] = load_review()
         plan["reminders"] = reminders(plan)
         plan["consent"] = state.get("consent")
         plan["metrics"] = summarize(state.get("metrics", []))

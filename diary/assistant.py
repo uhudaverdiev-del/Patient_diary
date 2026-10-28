@@ -18,7 +18,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from diary.privacy import redact
-from diary.wiki import search
+from diary.wiki import WIKI_DIR, search
 
 ROOT = Path(__file__).resolve().parent.parent
 YANDEX_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
@@ -114,6 +114,48 @@ def _why_text(article):
     return article["summary"]
 
 
+def load_faq(path=ROOT / "data" / "faq.json", sources_path=WIKI_DIR / "_sources.json"):
+    """Частые вопросы с готовыми ответами: AIbert отвечает на них и без нейросети."""
+    refs = json.loads(sources_path.read_text(encoding="utf-8"))
+    faq = json.loads(path.read_text(encoding="utf-8"))
+    for entry in faq:
+        entry["refs"] = [{"wiki": r[5:]} if r.startswith("wiki:") else {"title": refs[r]["title"], "url": refs[r]["url"]}
+                         for r in entry["sources"]]
+    return faq
+
+
+FAQ = load_faq()
+
+
+def _norm(text):
+    return " ".join(re.findall(r"\w+", text.lower().replace("ё", "е")))
+
+
+def faq_answer(question, wiki, faq=FAQ):
+    """Первый частый вопрос, у которого в вопросе пациента нашлось по слову из каждой группы.
+    Короткие слова («нет», «без», «где») ищем только с начала слова, остальные где угодно:
+    так «осмотр» находится и в «профосмотре»."""
+    q = " " + _norm(question)
+
+    def has(stem):
+        stem = _norm(stem)
+        return (" " + stem) in q if len(stem) <= 3 else stem in q
+
+    for entry in faq:
+        if all(any(has(stem) for stem in group) for group in entry["match"]):
+            sources = [{"title": "Справка: " + wiki[r["wiki"]]["title"], "wiki": r["wiki"]} if "wiki" in r else r
+                       for r in entry["refs"] if "wiki" not in r or r["wiki"] in wiki]
+            return {"answer": entry["answer"], "sources": sources}
+    return None
+
+
+def similar_questions(question, faq=FAQ, n=3):
+    """Похожие частые вопросы: подсказка вместо пустого «не знаю»."""
+    words = {w[:5] for w in _norm(question).split() if len(w) > 3}
+    scored = sorted(faq, key=lambda e: -len(words & {w[:5] for w in _norm(e["question"]).split() if len(w) > 3}))
+    return [e["question"] for e in scored[:n]]
+
+
 def _find_items(plan, question):
     """Пункты плана, о которых спрашивают (по словам из названия)."""
     q = question.lower()
@@ -126,8 +168,11 @@ def _find_items(plan, question):
 
 
 def local_answer(question, plan, wiki):
-    """Ответ без нейросети: правила + поиск по плану и Wiki."""
+    """Ответ без нейросети: частые вопросы, правила, поиск по плану и Wiki."""
     q = question.lower()
+    found = faq_answer(question, wiki)
+    if found:
+        return found
     if not plan.get("ready"):
         msg = " ".join(p["message"] for p in plan["problems"] if p["level"] == "blocking")
         return {"answer": f"Пока не могу составить план: {msg}", "sources": []}
@@ -190,8 +235,9 @@ def local_answer(question, plan, wiki):
     if articles:
         return {"answer": "\n".join(f"{a['title']}: {a['summary']}" for a in articles),
                 "sources": [_wiki_source(a) for a in articles]}
-    return {"answer": "Не нашёл ответа в вашем дневнике и базе знаний. С этим вопросом лучше обратиться к терапевту.",
-            "sources": []}
+    return {"answer": "Точного ответа на этот вопрос у меня нет. Если вопрос о здоровье, лучше спросить терапевта. "
+                      "Возможно, вам подойдёт один из этих вопросов:",
+            "sources": [], "suggest": similar_questions(question)}
 
 
 def build_context(question, plan, wiki):
@@ -258,7 +304,8 @@ class Assistant:
         if not question:
             return {"answer": "Задайте вопрос, например: «Что мне нужно пройти в этом году?»", "sources": [], "mode": "local"}
         fallback = local_answer(question, plan, self.wiki)
-        if not self.llm_enabled or not plan.get("ready"):
+        # На частые вопросы отвечаем проверенным текстом и без нейросети: так ответ не зависит от сети и не «плывёт».
+        if not self.llm_enabled or not plan.get("ready") or faq_answer(question, self.wiki):
             return dict(fallback, mode="local")
         # телефоны, e-mail и номера документов не уходят в облако и не пишутся в журнал
         safe_question = redact(question)

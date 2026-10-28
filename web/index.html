@@ -292,6 +292,14 @@
   .switch { display: flex; gap: 12px; align-items: center; font-weight: 500; }
   .big-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .big-choice button { min-height: 72px; font-size: 1.12rem; }
+  .ob-date { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin: 12px 0; }
+  #obForm3 .big-choice button { min-height: 52px; font-size: 1rem; }
+  .clinic { display: flex; flex-direction: column; gap: 2px; font-size: .92rem; border-left: 3px solid var(--sun); padding: 2px 0 2px 12px; }
+  .clinic span { color: var(--muted); }
+  .book-note { margin: 0; max-width: 52ch; }
+  .clinic-fields { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+  .clinic-fields legend { padding: 0; margin-bottom: 2px; }
+  #mStageRow { margin: 4px 0 14px; }
 
   /* Онбординг */
   .onb { max-width: 560px; margin: 24px auto 0; text-align: left; }
@@ -387,6 +395,8 @@
     .ai-head p { font-size: .76rem; }
     #aiDialog .chips { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding-bottom: 2px; }
     #aiDialog .chip-q { flex: none; white-space: nowrap; }
+    #aiDialog .msg .chips { flex-wrap: wrap; overflow: visible; }
+    #aiDialog .msg .chip-q { flex: initial; white-space: normal; text-align: left; }
     .sheet-actions .btn { flex: 1 1 auto; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -404,7 +414,6 @@
     <button class="side-sun" id="sideSun" data-tab="home" hidden></button>
     <div class="side-foot">
       <button class="nav-btn" data-tab="profile" id="sideMe"></button>
-      <button class="nav-btn" data-demo-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Режим показа</button>
     </div>
   </aside>
 
@@ -447,6 +456,7 @@
     <div class="field" id="mAlso" hidden><span class="label">Что из этого вам сделали в тот же день</span>
       <div class="muted small">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
       <div class="checks" id="mAlsoList" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px"></div></div>
+    <label class="switch" id="mStageRow" hidden><input type="checkbox" id="mStage"> Врач направил на второй этап</label>
     <div class="field"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" maxlength="2000" placeholder="Например: без патологии"></textarea></div>
     <div class="field" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div class="sheet-actions">
@@ -534,6 +544,9 @@ const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU
 const SEX = { female: "Женский", male: "Мужской" };
 const CONDITIONS = { mastectomy: "Перенесена мастэктомия", hysterectomy: "Перенесена экстирпация (удаление) матки" };
 const BUNDLES = ["dispanserization", "profosmotr"];
+// Запись: на диспансеризацию и профосмотр есть отдельная услуга Госуслуг, на остальное — запись к врачу.
+const GOSU = { bundle: "https://www.gosuslugi.ru/10088/1", doctor: "https://www.gosuslugi.ru/10700/1" };
+const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 // Прививки «если не прививались» решает врач по медкарте: в календарь, напоминания и «главный шаг» не ставим.
 const dueVaccines = (plan) => (plan.vaccines || []).filter((v) => !v.conditional);
 const calendarItems = (plan) => plan.items.concat(dueVaccines(plan));
@@ -643,6 +656,14 @@ function whenText(it) {
   return it.next_due ? "следующее " + fmt(it.next_due) : "сделано";
 }
 
+function reviewHtml() {
+  // Кто проверил медицинские тексты: имя задаётся в data/review.json. Пока его нет, так и пишем.
+  const r = (S.plan && S.plan.review) || {};
+  return `<p class="muted small review">${r.reviewer
+    ? `Проверено: ${esc(r.reviewer)}${r.role ? ", " + esc(r.role) : ""}${r.date ? ", " + fmt(r.date) : ""}.`
+    : "Текст составлен по приказам Минздрава. Проверка врачом ещё не проведена."}</p>`;
+}
+
 function hasPrep(test) { const t = S.tests.find((x) => x.test === test); return !!(t && t.prep); }
 
 function itemHtml(it) {
@@ -658,7 +679,8 @@ function itemHtml(it) {
       ${it.includes ? `<div class="muted">Включает: ${esc(it.includes)}</div>` : ""}
       <div class="src">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} ${esc(it.source.short || "приказа № 404н")}</a></div>
       <div class="row-btns">
-        <button class="btn" data-mark="${esc(it.test)}">${vaccine ? "Отметить прививку" : "Отметить пройденным"}</button>
+        ${needed(it) && !it.conditional ? bookBtn(it.test) : ""}
+        <button class="btn ${needed(it) && !it.conditional ? "ghost" : ""}" data-mark="${esc(it.test)}">${vaccine ? "Отметить прививку" : "Отметить пройденным"}</button>
         ${hasPrep(it.test) ? `<button class="btn ghost" data-prep="${esc(it.test)}">Как подготовиться</button>` : ""}
       </div>
       <div class="it-links">
@@ -690,16 +712,40 @@ function greeting() {
   return h < 5 ? "Доброй ночи" : h < 12 ? "Доброе утро" : h < 18 ? "Добрый день" : "Добрый вечер";
 }
 
+function bookBtn(test, cls = "btn") {
+  const url = BUNDLES.includes(test) ? GOSU.bundle : GOSU.doctor;
+  return `<a class="${cls}" href="${url}" target="_blank" rel="noopener noreferrer">Записаться на Госуслугах</a>`;
+}
+
+function clinicHtml(plan) {
+  // «Моя поликлиника» из профиля; если не заполнена — подсказка, где записаться ещё.
+  const p = plan.profile || {};
+  const phone = (p.clinic_phone || "").replace(/[^\d+]/g, "");
+  if (!p.clinic_name && !p.clinic_address && !p.clinic_phone)
+    return `<p class="muted small book-note">Запись онлайн работает только в поликлинику, к которой вы прикреплены. Можно также позвонить или прийти в регистратуру.
+      <button class="linkbtn" data-goto="profile">Указать мою поликлинику</button></p>`;
+  return `<div class="clinic"><b>${esc(p.clinic_name || "Моя поликлиника")}</b>
+    ${p.clinic_address ? `<span>${esc(p.clinic_address)}</span>` : ""}
+    ${phone ? `<a href="tel:${esc(phone)}">${esc(p.clinic_phone)}</a>` : ""}</div>`;
+}
+
 function mainStep(plan) {
   // Один главный шаг: сначала диспансеризация (зажигает больше всего лучей), потом прививка, потом профиль.
   const sun = plan.sun || { rays: [] };
+  if (plan.second_stage) {
+    return { tag: "После диспансеризации", title: "Пройдите второй этап диспансеризации", book: "second_stage",
+      why: `${fmt(plan.second_stage.date)} терапевт направил вас на второй этап. Он нужен, чтобы уточнить, что нашли на первом этапе, и тоже бесплатен по полису ОМС. Не откладывайте его.`,
+      primary: `<button class="btn" data-article="second_stage">Что такое второй этап</button>`,
+      secondary: `<button class="btn ghost" data-stage-done="${esc(plan.second_stage.id)}">Второй этап пройден</button>` };
+  }
   const bundle = plan.items.find((i) => BUNDLES.includes(i.test) && needed(i));
   if (bundle) {
     const n = sun.rays.filter((r) => !r.lit && r.mark && r.kind !== "vaccine").length;
     const disp = bundle.test === "dispanserization";
     return { item: bundle, tag: bundle.status === "overdue" ? "Срок уже прошёл" : "В этом году",
       title: disp ? "Пройдите диспансеризацию" : "Пройдите профилактический осмотр",
-      why: `Это один визит в поликлинику по месту прикрепления, бесплатно по полису ОМС. После него зажжётся до ${n} ${rayWord(n)} из ${sun.total}.`,
+      why: `Это бесплатная проверка здоровья по полису ОМС, ${disp ? "первый этап обычно занимает один день" : "обычно один визит"}. После неё зажжётся до ${n} ${rayWord(n)} из ${sun.total}.`,
+      book: bundle.test,
       primary: `<button class="btn" data-article="how_to_pass">Как пройти</button>`,
       secondary: `<button class="btn ghost" data-mark="${esc(bundle.test)}">Я уже прошёл(ла)</button>` };
   }
@@ -708,7 +754,7 @@ function mainStep(plan) {
   if (it) {
     const vaccine = it.kind === "vaccine";
     return { item: it, tag: it.status === "overdue" ? "Срок уже прошёл" : vaccine ? "Прививка" : "Скоро",
-      title: it.title,
+      title: it.title, book: it.test,
       why: `${vaccine ? "Прививку делают" : "Обследование проходят"} бесплатно в поликлинике по месту прикрепления. Кому положено: ${it.who}.`,
       primary: hasPrep(it.test) ? `<button class="btn" data-prep="${esc(it.test)}">Как подготовиться</button>` : `<button class="btn" data-wiki="${esc(it.wiki)}">Зачем это?</button>`,
       secondary: `<button class="btn ghost" data-mark="${esc(it.test)}">${vaccine ? "Я уже привит(а)" : "Я уже прошёл(ла)"}</button>` };
@@ -744,13 +790,14 @@ function riskHtml(plan) {
 
 function onboardingHtml() {
   const ob = S.ob, lit = ob.step - 1;
-  const mini = { total: 3, lit, all_done: false, rays: [0, 1, 2].map((i) => ({ id: "ob" + i, lit: i < lit })) };
+  const mini = { total: 4, lit, all_done: false, rays: [0, 1, 2, 3].map((i) => ({ id: "ob" + i, lit: i < lit })) };
   const body = ob.step === 1 ? `<form id="obForm1"><div class="field"><label for="wBirth">Когда вы родились?</label>
         <input type="date" id="wBirth" required value="${esc(ob.birth || "")}" max="${esc(S.plan.today)}"></div>
         <button class="btn" type="submit" style="width:100%">Дальше</button></form>`
     : ob.step === 2 ? `<span class="label">Ваш пол</span><p class="muted small" style="margin-top:2px">От него зависит, какие обследования положены.</p>
         <div class="big-choice"><button class="btn ghost" data-sex="female">Женский</button><button class="btn ghost" data-sex="male">Мужской</button></div>
         <button class="linkbtn muted" data-obback style="margin-top:12px">Назад</button>`
+    : ob.step === 3 ? lastCheckHtml()
     : `<form id="welcomeForm"><div class="field"><label for="wName">Как к вам обращаться</label><input id="wName" maxlength="100" placeholder="Можно не заполнять" autocomplete="given-name" value="${esc(ob.name || "")}"></div>
         ${consentHtml("wConsent")}
         <button class="btn" type="submit" style="width:100%">Показать мой план</button>
@@ -758,10 +805,28 @@ function onboardingHtml() {
   return `<div class="onb">
     <div class="sun mini-sun">${sunSvg(mini)}</div>
     <h1>Какие обследования вам положены бесплатно?</h1>
-    <p class="lead">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация. Ответьте на три вопроса, и дневник составит личный план по приказам Минздрава, со сроками и напоминаниями.</p>
-    <div class="card"><div class="onb-step">Шаг ${ob.step} из 3</div><div style="margin-top:10px">${body}</div></div>
+    <p class="lead">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация. Ответьте на четыре вопроса, и дневник составит личный план по приказам Минздрава, со сроками и напоминаниями.</p>
+    <div class="card"><div class="onb-step">Шаг ${ob.step} из 4</div><div style="margin-top:10px">${body}</div></div>
     <p class="muted small">Данные хранятся только на этом компьютере. <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
   </div>`;
+}
+
+function lastCheckHtml() {
+  // Последняя диспансеризация со слов: сразу даёт плану точку отсчёта вместо «отметок нет».
+  const today = new Date(S.plan.today + "T00:00:00"), year = today.getFullYear();
+  const born = S.ob.birth ? Number(S.ob.birth.slice(0, 4)) : year - 80;
+  const years = []; for (let y = year; y >= Math.max(born + 18, year - 15); y--) years.push(y);
+  const [ly, lm] = (S.ob.last && S.ob.last.length === 7 ? S.ob.last : "-").split("-");
+  return `<form id="obForm3"><span class="label">Когда вы последний раз проходили диспансеризацию?</span>
+      <p class="muted small" style="margin-top:2px">Примерно, по памяти. Точные даты есть в выписке ОМС на Госуслугах, их можно поправить потом.</p>
+      <div class="ob-date"><select id="wLastMonth" aria-label="Месяц"><option value="">Месяц</option>
+          ${MONTHS.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}" ${lm === String(i + 1).padStart(2, "0") ? "selected" : ""}>${m}</option>`).join("")}</select>
+        <select id="wLastYear" aria-label="Год"><option value="">Год</option>
+          ${years.map((y) => `<option ${ly === String(y) ? "selected" : ""}>${y}</option>`).join("")}</select></div>
+      <button class="btn" type="submit" style="width:100%">Дальше</button>
+      <div class="big-choice" style="margin-top:10px"><button type="button" class="btn ghost" data-lastcheck="unknown">Не помню</button>
+        <button type="button" class="btn ghost" data-lastcheck="never">Никогда не проходил(а)</button></div>
+      <button type="button" class="linkbtn muted" data-obback style="margin-top:12px">Назад</button></form>`;
 }
 
 /* ---------- Экраны ---------- */
@@ -839,21 +904,21 @@ function metricCard(m) {
 
 function disputesHtml(plan, titles) {
   const list = plan.disputes || [];
-  return `<h2>Проверьте, нет ли приписок</h2>
+  return `<h2>Мои права по ОМС: проверьте выписку</h2>
     <div class="card">
-      <p style="margin-top:0;max-width:68ch">Приписка — это услуга в выписке ОМС, которую вам не оказывали. За неё поликлиника получает деньги,
-        а у вас в медкарте появляется обследование, которого не было. Выписку можно бесплатно заказать на Госуслугах: обычно она приходит в течение дня.</p>
+      <p style="margin-top:0;max-width:68ch">В выписке ОМС видно, какие обследования оплачены за вас. Иногда туда по ошибке попадает то, чего вы не проходили
+        (это называют припиской). Тогда врач может решить, что обследование уже сделано. Выписку можно бесплатно заказать на Госуслугах: обычно она приходит в течение дня.</p>
       <div class="row-btns" style="margin-top:12px">
         <button class="btn" type="button" id="disputeBtn">В выписке есть то, чего я не проходил(а)</button>
         <a class="btn ghost" href="https://www.gosuslugi.ru/600438/1" target="_blank" rel="noopener noreferrer">Заказать выписку на Госуслугах</a>
       </div>
       <div class="it-links" style="margin-top:10px">
         <a href="https://www.gosuslugi.ru/help/faq/oms_service_cost/50011" target="_blank" rel="noopener noreferrer">Как это работает</a>
-        <a href="#" data-article="clinic_refused">Что делать с припиской</a>
+        <a href="#" data-article="clinic_refused">Что делать, если нашли ошибку</a>
       </div>
       ${list.length ? `<div class="list" style="margin-top:16px">${list.map((d) => `<div class="rec"><span class="d">${fmt(d.date)}</span>
           <span><b>${esc(titles[d.test] || d.test)}</b>${d.comment ? `<div class="muted small">${esc(d.comment)}</div>` : ""}</span>
-          <span class="acts"><button class="linkbtn" data-displetter="${esc(d.id)}">Заявление в страховую</button>
+          <span class="acts"><button class="linkbtn" data-displetter="${esc(d.id)}">Обращение в страховую</button>
             <button class="linkbtn danger" data-deldispute="${esc(d.id)}">Удалить</button></span></div>`).join("")}</div>
         <p class="muted small">Эти записи не учитываются в плане: сроки считаются так, будто обследования не было.</p>` : ""}
     </div>`;
@@ -903,7 +968,9 @@ const VIEWS = {
           <span class="eyebrow">${esc(step.tag)}</span>
           <h2>${esc(step.title)}</h2>
           <p class="why">${esc(step.why)}</p>
-          <div class="row-btns">${step.primary}${step.secondary}</div>
+          ${step.book ? `<div class="row-btns">${bookBtn(step.book)}${step.primary.replace('class="btn"', 'class="btn ghost"')}</div>
+            <div class="row-btns" style="margin-top:8px">${step.secondary}</div>${clinicHtml(plan)}`
+            : `<div class="row-btns">${step.primary}${step.secondary}</div>`}
           ${step.item && !step.item.conditional ? `<button class="linkbtn muted" data-letter="${esc(step.item.test)}">Отказали в поликлинике?</button>` : ""}
         </div>
       </div>
@@ -952,6 +1019,7 @@ const VIEWS = {
           <h2>Источники</h2>
           <ol class="src">${a.sources.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join("")}</ol>
           <p class="muted small">Актуальность источников проверена ${fmt(a.checked)}. Материал носит справочный характер и не заменяет консультацию врача.</p>
+          ${reviewHtml()}
         </article>`;
     }
     const groups = {};
@@ -979,6 +1047,11 @@ const VIEWS = {
           ${Object.entries(SEX).map(([v, t]) => `<option value="${v}" ${p.sex === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
         <div class="field"><label for="pSmoking">Курение</label><select id="pSmoking">
           ${["", "Не курит", "Курит", "Бросил курить"].map((v) => `<option ${p.smoking === v ? "selected" : ""} value="${v}">${v || "не указано"}</option>`).join("")}</select></div>
+        <fieldset class="field clinic-fields"><legend class="label">Моя поликлиника</legend>
+          <div class="muted small">Необязательно. Покажем рядом с кнопкой записи, чтобы не искать телефон.</div>
+          <input id="pClinicName" maxlength="100" placeholder="Название, например: Городская поликлиника № 5" value="${esc(p.clinic_name)}" aria-label="Название поликлиники">
+          <input id="pClinicAddress" maxlength="100" placeholder="Адрес" value="${esc(p.clinic_address)}" aria-label="Адрес поликлиники">
+          <input id="pClinicPhone" type="tel" maxlength="100" placeholder="Телефон регистратуры" value="${esc(p.clinic_phone)}" aria-label="Телефон регистратуры"></fieldset>
         <div class="field checks"><span class="label">Перенесённые операции, которые меняют план</span>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
         <div class="field checks"><span class="label">Прививки</span>
@@ -1129,6 +1202,7 @@ function renderChat() {
   const msgs = S.chat.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>`
     : m.pending ? `<div class="msg bot" aria-label="AIbert думает"><span class="typing"><i></i><i></i><i></i></span></div>`
     : `<div class="msg bot">${esc(m.answer).replace(/\n/g, "<br>")}
+        ${m.suggest && m.suggest.length ? `<div class="chips" style="margin-top:10px">${m.suggest.map((q) => `<button class="chip-q" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>` : ""}
         ${m.sources && m.sources.length ? `<div class="msg-src">Источники: ${m.sources.map((x, i) => (m.numbered ? `[${i + 1}] ` : "") + (x.wiki
             ? `<a href="#" data-article="${esc(x.wiki)}">${esc(x.title)}</a>`
             : x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title))).join("; ")}</div>` : ""}
@@ -1180,6 +1254,7 @@ function alsoList() {
   const items = (S.plan.items || []).filter((i) => !BUNDLES.includes(i.test) && !seen.has(i.test) && seen.add(i.test));
   $("#mAlsoList").innerHTML = items.map((i) => `<label><input type="checkbox" value="${esc(i.test)}" ${needed(i) ? "checked" : ""}> ${esc(i.title)}</label>`).join("");
   $("#mAlso").hidden = !(!S.editId && BUNDLES.includes($("#mTest").value) && items.length > 0);
+  $("#mStageRow").hidden = $("#mTest").value !== "dispanserization";
 }
 
 function openMark(test, record) {
@@ -1192,6 +1267,7 @@ function openMark(test, record) {
   $("#mResult").value = record ? record.result || "" : "";
   $("#mFile").value = "";
   $("#mFileRow").hidden = !!record;
+  $("#mStage").checked = !!(record && record.second_stage === "referred");
   alsoList();
   $("#markDialog").showModal();
 }
@@ -1204,6 +1280,7 @@ function openPrep(test) {
     <b>До визита</b>${list(t.prep.before)}
     <b>Взять с собой</b>${list(t.prep.bring)}
     <p class="muted small">${esc(t.prep.note)}</p>
+    ${reviewHtml()}
     <div class="sheet-actions">
       <button type="button" class="btn quiet" data-close>Закрыть</button>
       <button type="button" class="btn" data-mark="${esc(t.test)}">Отметить пройденным</button>
@@ -1282,7 +1359,7 @@ function setTheme(v) {
 
 const NAV_KEYS = ["article", "tab", "goto", "wiki", "mark", "demo", "ai", "open", "demoOpen", "ask"];
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-prep],[data-close],[data-letter],[data-displetter],[data-deldispute],[data-ai],[data-open],[data-mode],[data-demo-open],[data-exit-demo],[data-theme-set],[data-sex],[data-obback],#disputeBtn");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-prep],[data-close],[data-letter],[data-displetter],[data-deldispute],[data-ai],[data-open],[data-mode],[data-demo-open],[data-exit-demo],[data-theme-set],[data-sex],[data-obback],[data-stage-done],[data-lastcheck],#disputeBtn");
   if (!t) return;
   const ds = t.dataset;
   // Переход из диалога закрывает диалог (кроме вопросов внутри AIbert).
@@ -1301,19 +1378,27 @@ document.addEventListener("click", async (e) => {
   if (ds.themeSet) return setTheme(ds.themeSet);
   if (ds.sex) { S.ob.sex = ds.sex; S.ob.step = 3; return render(); }
   if (ds.obback !== undefined) { S.ob.step = Math.max(1, S.ob.step - 1); return render(); }
+  if (ds.lastcheck) { S.ob.last = ds.lastcheck; S.ob.step = 4; return render(); }
+  if (ds.stageDone) {
+    const before = litSet();
+    try {
+      S.plan = await api("PUT", "/api/history/" + ds.stageDone, { second_stage: "done" });
+      ignite(before); render(); return toast("Второй этап отмечен как пройденный");
+    } catch (err) { return toast(err.message); }
+  }
   if (t.id === "disputeBtn") {
     $("#dTest").innerHTML = S.tests.map((x) => `<option value="${esc(x.test)}">${esc(x.title)}</option>`).join("");
     $("#dDate").value = ""; $("#dDate").max = S.plan.today; $("#dComment").value = "";
     return $("#disputeDialog").showModal();
   }
   if (ds.deldispute) {
-    if (!confirm("Удалить отметку о приписке?")) return;
+    if (!confirm("Удалить отметку об ошибке в выписке?")) return;
     S.plan = await api("DELETE", "/api/disputes/" + ds.deldispute); render(); return toast("Удалено, план пересчитан");
   }
   if (ds.displetter) {
     try {
       const r = await api("POST", "/api/letter", { kind: "dispute", id: ds.displetter });
-      $("#tTitle").textContent = "Заявление в страховую о приписке"; $("#tText").value = r.text; return $("#textDialog").showModal();
+      $("#tTitle").textContent = "Обращение в страховую компанию"; $("#tText").value = r.text; return $("#textDialog").showModal();
     } catch (err) { return toast(err.message); }
   }
   if (ds.delmetric) {
@@ -1351,11 +1436,22 @@ document.addEventListener("submit", async (e) => {
   const id = e.target.id;
   if (id === "askForm") { e.preventDefault(); return ask($("#askInput").value); }
   if (id === "obForm1") { e.preventDefault(); S.ob.birth = $("#wBirth").value; S.ob.step = 2; return render(); }
+  if (id === "obForm3") {
+    e.preventDefault();
+    const m = $("#wLastMonth").value, y = $("#wLastYear").value;
+    if (!m || !y) return toast("Выберите месяц и год или нажмите «Не помню»");
+    if (`${y}-${m}` > S.plan.today.slice(0, 7)) return toast("Этот месяц ещё не наступил");
+    S.ob.last = `${y}-${m}`; S.ob.step = 4; return render();
+  }
   if (id === "welcomeForm") {
     e.preventDefault();
     try {
       S.plan = await api("POST", "/api/profile", { name: $("#wName").value.trim(), consent: $("#wConsent").checked,
         profile: { birth_date: S.ob.birth, sex: S.ob.sex } });
+      if (S.ob.last && S.ob.last.length === 7) {
+        // Первое число месяца: если день не помнят, срок следующей лучше посчитать чуть раньше, чем позже.
+        S.plan = await api("POST", "/api/history", { test: "dispanserization", date: S.ob.last + "-01", result: "Примерная дата, со слов" });
+      }
       S.risen = false; return go("home");
     } catch (err) { return toast(err.message); }
   }
@@ -1375,7 +1471,8 @@ document.addEventListener("submit", async (e) => {
   const before = litSet();
   try {
     S.plan = await api("POST", "/api/profile", { name: $("#pName").value, consent: !!($("#pConsent") && $("#pConsent").checked), profile: {
-      birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions } });
+      birth_date: $("#pBirth").value, sex: $("#pSex").value, smoking: $("#pSmoking").value, conditions,
+      clinic_name: $("#pClinicName").value, clinic_address: $("#pClinicAddress").value, clinic_phone: $("#pClinicPhone").value } });
     const n = ignite(before); render(); toast(n ? `Профиль сохранён. Зажглось лучей: ${n}` : "Профиль сохранён, план пересчитан");
   } catch (err) { toast(err.message); }
 });
@@ -1417,6 +1514,8 @@ document.addEventListener("input", (e) => {
 $("#markForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const body = { test: $("#mTest").value, date: $("#mDate").value, result: $("#mResult").value };
+  if (body.test === "dispanserization") body.second_stage = $("#mStage").checked ? "referred" : (S.editId ? null : undefined);
+  if (body.second_stage === undefined) delete body.second_stage;
   const file = $("#mFile").files[0];
   const before = litSet();
   try {
