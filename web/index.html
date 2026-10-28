@@ -8,7 +8,7 @@
   :root {
     --bg: #f5f7f9; --card: #ffffff; --text: #1d2730; --muted: #5d6b78; --line: #e1e6eb;
     --accent: #1f6feb; --accent-soft: #e8f0fd;
-    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea;
+    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea; --nd: #5d6b78; --nd-soft: #eceff2;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
@@ -31,6 +31,7 @@
   .tile.overdue { background: var(--bad-soft); color: var(--bad); }
   .tile.soon { background: var(--soon-soft); color: var(--soon); }
   .tile.actual { background: var(--ok-soft); color: var(--ok); }
+  .tile.no_data { background: var(--nd-soft); color: var(--nd); }
   .tile.progress { background: var(--accent-soft); color: var(--accent); }
   .meter { height: 8px; background: rgba(0,0,0,.08); border-radius: 4px; margin-top: 6px; overflow: hidden; }
   .meter i { display: block; height: 100%; background: currentColor; }
@@ -38,10 +39,17 @@
   .pill.overdue { background: var(--bad-soft); color: var(--bad); }
   .pill.soon { background: var(--soon-soft); color: var(--soon); }
   .pill.actual { background: var(--ok-soft); color: var(--ok); }
+  .pill.no_data { background: var(--nd-soft); color: var(--nd); }
   .item { display: grid; grid-template-columns: 6px 1fr auto; gap: 14px; padding: 14px 16px; }
   .item::before { content: ""; border-radius: 3px; background: var(--ok); }
   .item.overdue::before { background: var(--bad); }
   .item.soon::before { background: var(--soon); }
+  .item.no_data::before { background: #b7c0c8; }
+  .item.no_data .note { color: var(--muted); }
+  .risk { border-left: 4px solid var(--soon); margin-top: 16px; }
+  .risk h3 { margin: 0 0 4px; font-size: 16px; }
+  details.group > summary { cursor: pointer; font-size: 18px; font-weight: 700; margin: 24px 0 10px; }
+  details.group > summary span { font-size: 14px; font-weight: 400; color: var(--accent); margin-left: 6px; }
   .item h3 { margin: 0 0 2px; font-size: 16px; }
   .item .dates { margin: 6px 0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
   .item .note { font-size: 14px; color: var(--soon); margin: 4px 0 0; }
@@ -57,6 +65,7 @@
   .month.now { border-color: var(--accent); }
   .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
   .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .chip.no_data { border-color: #b7c0c8; background: var(--nd-soft); }
   .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 400; color: var(--muted); margin: 4px 0 12px; }
   .consent input { width: auto; margin-top: 3px; flex: none; }
   .privacy-note { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
@@ -68,6 +77,10 @@
   .reminders li { margin: 4px 0; }
   .reminders li.overdue::marker { color: var(--bad); }
   .reminders li.soon::marker { color: var(--soon); }
+  .reminders li.no_data::marker { color: var(--nd); }
+  #mAlso { display: none; }
+  #mAlso.show { display: grid; }
+  #mAlso .checks { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .reminders li a { font-size: 13px; margin-left: 6px; }
   .chip.soon { border-color: var(--soon); background: var(--soon-soft); }
   .chip small { display: block; color: var(--muted); }
@@ -101,6 +114,24 @@
   .quick .btn, [data-ask].btn { white-space: normal; text-align: left; font-weight: 500; }
   .ask { display: flex; gap: 8px; }
   @media (max-width: 640px) { .msg { max-width: 100%; } }
+  .metrics { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin-top: 16px; }
+  .metric .big { font-size: 26px; font-weight: 700; }
+  .metric .big small { font-size: 14px; font-weight: 400; color: var(--muted); }
+  .metric .flag { font-size: 14px; margin: 4px 0 8px; }
+  .metric .flag.high { color: var(--bad); }
+  .metric .flag.ok { color: var(--ok); }
+  .metric svg { width: 100%; height: 130px; display: block; }
+  .metric svg .grid-line { stroke: var(--line); }
+  .metric svg .limit { stroke: var(--bad); stroke-dasharray: 4 4; opacity: .6; }
+  .metric svg .line1 { stroke: var(--accent); fill: none; stroke-width: 2.5; }
+  .metric svg .line2 { stroke: #7aa7f0; fill: none; stroke-width: 2.5; }
+  .metric svg text { font-size: 10px; fill: var(--muted); }
+  .metric details { font-size: 14px; margin-top: 6px; }
+  .metric details li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 2px 0; }
+  .metric details ul { list-style: none; padding: 0; margin: 6px 0 0; }
+  .linkbtn { background: none; border: 0; color: var(--bad); cursor: pointer; font: inherit; font-size: 13px; }
+  .metric-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  .metric-form label { font-size: 13px; }
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) {
     .item { grid-template-columns: 6px 1fr; }
@@ -122,6 +153,7 @@
     <button data-tab="plan">Мой план</button>
     <button data-tab="calendar">Календарь</button>
     <button data-tab="history">Пройдено</button>
+    <button data-tab="metrics">Показатели</button>
     <button data-tab="profile">Профиль</button>
     <button data-tab="wiki">Здоровье / Wiki</button>
   </nav>
@@ -140,8 +172,11 @@
     <h2 style="margin-top:0">Отметить пройденное обследование</h2>
     <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
     <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
+    <div class="row" id="mAlso"><label>Что из этого вам сделали в тот же день</label>
+      <div class="muted" style="font-size:13px">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
+      <div class="checks" id="mAlsoList"></div></div>
     <div class="row"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
-    <div class="row"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+    <div class="row" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button type="button" class="btn ghost" id="mCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
@@ -306,7 +341,7 @@ function remindersHtml(plan) {
   const shown = list.slice(0, 5);
   return `<div class="card reminders" style="margin-top:16px">
       <h3 style="margin-top:0">Напоминания</h3>
-      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
+      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : r.no_data ? "no_data" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
           <a href="#" data-mark="${esc(r.test)}">Отметить пройденным</a></li>`).join("")}</ul>
           ${list.length > shown.length ? `<div class="muted">И ещё ${list.length - shown.length} — см. «Мой план».</div>` : ""}`
         : `<p class="muted">В ближайшие 30 дней ничего проходить не нужно.</p>`}
@@ -315,22 +350,64 @@ function remindersHtml(plan) {
     </div>`;
 }
 
+function riskHtml(plan) {
+  return (plan.risk_factors || []).map((r) => `<div class="card risk"><h3>${esc(r.title)}</h3>
+    <div>${esc(r.text)}</div>
+    ${r.wiki ? `<p style="margin:8px 0 0"><a href="#" data-article="${esc(r.wiki)}">Подробнее о факторах риска</a></p>` : ""}</div>`).join("");
+}
+
+function chartSvg(m) {
+  // Простой график по датам: ось X — время, ось Y — значение; пунктир — граница фактора риска.
+  const pts = m.points;
+  if (pts.length < 2) return `<p class="muted" style="font-size:13px">График появится после второго измерения.</p>`;
+  const W = 300, H = 130, L = 30, R = 8, T = 10, B = 20;
+  const t = pts.map((p) => new Date(p.date + "T00:00:00").getTime());
+  const vals = pts.flatMap((p) => m.two_values ? [p.value, p.value2] : [p.value]);
+  const limits = m.limit == null ? [] : Array.isArray(m.limit) ? m.limit : [m.limit];
+  let lo = Math.min(...vals, ...limits), hi = Math.max(...vals, ...limits);
+  const pad = (hi - lo) * 0.15 || 1; lo -= pad; hi += pad;
+  const x = (i) => L + (t[i] - t[0]) / ((t[t.length - 1] - t[0]) || 1) * (W - L - R);
+  const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+  const line = (key, cls) => `<polyline class="${cls}" points="${pts.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ")}"/>`
+    + pts.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[key]).toFixed(1)}" r="3" class="${cls}" style="fill:#fff"><title>${fmt(p.date)}: ${p[key]}</title></circle>`).join("");
+  const ticks = [lo + pad, (lo + hi) / 2, hi - pad].map((v) => `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="2" y="${y(v) + 3}">${Math.round(v * 10) / 10}</text>`).join("");
+  const lims = limits.map((v) => `<line class="limit" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join("");
+  const dates = `<text x="${L}" y="${H - 4}">${fmt(pts[0].date)}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${fmt(pts[pts.length - 1].date)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="График: ${esc(m.title)}">${ticks}${lims}${line("value", "line1")}${m.two_values ? line("value2", "line2") : ""}${dates}</svg>`;
+}
+
+function metricCard(m) {
+  const last = m.last;
+  return `<div class="card metric">
+    <h3 style="margin:0 0 6px;font-size:16px">${esc(m.title)}</h3>
+    ${last ? `<div class="big">${esc(last.text)} <small>${esc(m.unit)} · ${fmt(last.date)}</small></div>
+      ${m.change ? `<div class="muted" style="font-size:13px">${esc(m.change)}</div>` : ""}
+      ${last.note ? `<div class="flag ${last.high ? "high" : "ok"}">${esc(last.note)}</div>` : ""}
+      ${chartSvg(m)}
+      <details><summary>Все измерения (${m.points.length})</summary><ul>${m.points.slice().reverse().map((p) => `<li><span>${fmt(p.date)}: <b>${m.two_values ? `${p.value}/${p.value2}` : p.value}</b></span>
+        <button class="linkbtn" data-delmetric="${esc(p.id)}">удалить</button></li>`).join("")}</ul></details>`
+      : `<p class="muted">Пока нет измерений.</p>`}
+  </div>`;
+}
+
 const VIEWS = {
   home(plan) {
     const name = plan.name ? esc(plan.name) : "Добро пожаловать";
     if (isEmpty(plan)) return welcomeHtml();
     if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
     const s = plan.summary;
-    const next = plan.items.filter((i) => i.status !== "actual").slice(0, 5);
+    const next = plan.items.filter((i) => i.status !== "actual" || i.todo_this_year).slice(0, 5);
     return `<h1>${name}</h1>
       <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
       ${problemsHtml(plan)}
       <div class="grid tiles">
         <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
         <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
+        <div class="tile no_data"><b>${s.counts.no_data}</b>нет данных</div>
         <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
-        <div class="tile progress"><b>${s.progress_percent}%</b>план выполнен<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
+        <div class="tile progress"><b>${s.progress_percent}%</b>пройдено ${s.done} из ${s.required}<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
       </div>
+      ${riskHtml(plan)}
       ${remindersHtml(plan)}
       <div class="card" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <b style="margin-right:8px">Спросите ассистента:</b>
@@ -345,13 +422,20 @@ const VIEWS = {
 
   plan(plan) {
     if (!plan.ready) return `<h1>Мой план</h1>${problemsHtml(plan)}`;
-    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"], ["actual", "Актуально"]];
+    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"],
+      ["no_data", "Нет данных: пройти при ближайшем визите"], ["actual", "Актуально"]];
     return `<h1>Мой план профилактики</h1>
-      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.</div>
+      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.
+        «Нет данных» значит, что отметок о прохождении нет: если уже проходили, нажмите «Пройдено» и укажите дату.</div>
       ${problemsHtml(plan)}
       ${groups.map(([st, title]) => {
         const items = plan.items.filter((i) => i.status === st);
-        return items.length ? `<h2>${title} (${items.length})</h2><div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>` : "";
+        if (!items.length) return "";
+        const list = `<div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>`;
+        // Просроченное сворачиваем, чтобы список не пугал, но и не прячем: план должен соответствовать приказу.
+        if (st === "overdue") return `<details class="group" ${S.openOverdue ? "open" : ""} data-overdue>
+          <summary>${title} (${items.length})<span>${S.openOverdue ? "свернуть" : "показать"}</span></summary>${list}</details>`;
+        return `<h2>${title} (${items.length})</h2>${list}`;
       }).join("")}`;
   },
 
@@ -362,15 +446,15 @@ const VIEWS = {
     for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
     const key = (d) => d.getFullYear() * 12 + d.getMonth();
     const chip = (i) => `<span class="chip ${i.status}" data-mark="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)} · ${fmt(i.next_due)}</small></span>`;
-    const overdue = plan.items.filter((i) => i.status === "overdue");
+    const overdue = plan.items.filter((i) => i.status === "overdue" || i.status === "no_data");
     const later = plan.items.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
     return `<h1>Календарь обследований</h1>
       <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
       <p>${icsButton()}</p>
       <div class="grid cal" style="margin-top:16px">
-        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Просрочено</h3>${overdue.map(chip).join("")}</div>` : ""}
+        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
         ${months.map((m, idx) => {
-          const items = plan.items.filter((i) => i.status !== "overdue" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
+          const items = plan.items.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
           return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
             ${items.length ? items.map(chip).join("") : `<span class="muted" style="font-size:13px">Ничего не запланировано</span>`}</div>`;
         }).join("")}
@@ -383,7 +467,8 @@ const VIEWS = {
     const rows = plan.history.map((r) => `<tr>
         <td>${fmt(r.date)}</td><td>${esc(titles[r.test] || r.test)}</td><td>${esc(r.result)}</td>
         <td>${r.file ? `<a href="/files/${encodeURIComponent(r.file.stored)}" target="_blank">${esc(r.file.name)}</a>` : ""}</td>
-        <td><button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
+        <td style="white-space:nowrap"><button class="btn ghost" data-edit="${esc(r.id)}">Изменить</button>
+          <button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
     return `<h1>Пройденные обследования</h1>
       <div class="muted">После каждой записи сроки и статусы в плане пересчитываются автоматически.</div>
       <p>${reportButton()}</p>
@@ -391,6 +476,24 @@ const VIEWS = {
         ${rows ? `<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th><th>Файл</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
           : `<p class="muted">Пока нет записей. Нажмите «+ Отметить прохождение».</p>`}
       </div>`;
+  },
+
+  metrics(plan) {
+    const data = plan.metrics || { items: [] };
+    const kinds = data.items.map((m) => `<option value="${esc(m.kind)}">${esc(m.title)}, ${esc(m.unit)}</option>`).join("");
+    return `<h1>Показатели здоровья</h1>
+      <div class="muted">Вносите давление, вес, холестерин и сахар: из дома или из результатов анализов. Дневник покажет, как они меняются,
+        и подскажет, если значение выше критерия фактора риска. Это не диагноз: решение принимает врач.</div>
+      <form class="card metric-form" id="metricForm" style="margin-top:16px">
+        <div><label for="mtKind">Показатель</label><select id="mtKind">${kinds}</select></div>
+        <div><label for="mtDate">Дата</label><input type="date" id="mtDate" value="${esc(plan.today)}" max="${esc(plan.today)}" required></div>
+        <div><label for="mtValue" id="mtValueLabel">Значение</label><input id="mtValue" inputmode="decimal" required placeholder="например, 5,2"></div>
+        <div id="mtValue2Box" style="display:none"><label for="mtValue2">Нижнее</label><input id="mtValue2" inputmode="decimal" placeholder="например, 80"></div>
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+      <div class="grid metrics">${data.items.map(metricCard).join("")}</div>
+      ${data.source ? `<p class="muted" style="font-size:13px">Границы: давление 140/90, общий холестерин 5,0 ммоль/л, сахар натощак 6,1 ммоль/л —
+        <a href="${esc(data.source.url)}" target="_blank" rel="noopener">${esc(data.source.title)}</a>.</p>` : ""}`;
   },
 
   profile(plan) {
@@ -468,18 +571,35 @@ const VIEWS = {
 function render() {
   if (!S.plan) return;
   $("#view").innerHTML = VIEWS[S.tab](S.plan);
+  if (S.tab === "metrics") metricKindChanged();
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === S.tab));
   $("#todayHint").textContent = "(расчёт на " + fmt(S.plan.today) + ")";
 }
 
 function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
 
-function openMark(test) {
-  $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === test ? "selected" : ""}>${esc(t.title)}</option>`).join("");
-  $("#mDate").value = S.plan.today;
+const BUNDLES = ["dispanserization", "profosmotr"];
+
+function alsoList() {
+  // Обследования из плана, которые входят в профосмотр и диспансеризацию.
+  // Отмечены по умолчанию те, что сейчас нужно пройти: обычно их и делают за этот визит.
+  const seen = new Set();
+  const items = (S.plan.items || []).filter((i) => !BUNDLES.includes(i.test) && !seen.has(i.test) && seen.add(i.test));
+  $("#mAlsoList").innerHTML = items.map((i) => `<label><input type="checkbox" value="${esc(i.test)}" ${i.status !== "actual" || i.todo_this_year ? "checked" : ""}> ${esc(i.title)}</label>`).join("");
+  $("#mAlso").classList.toggle("show", !S.editId && BUNDLES.includes($("#mTest").value) && items.length > 0);
+}
+
+function openMark(test, record) {
+  S.editId = record ? record.id : null;
+  const selected = record ? record.test : test;
+  $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === selected ? "selected" : ""}>${esc(t.title)}</option>`).join("");
+  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить пройденное обследование";
+  $("#mDate").value = record ? record.date : S.plan.today;
   $("#mDate").max = S.plan.today;
-  $("#mResult").value = "";
+  $("#mResult").value = record ? record.result || "" : "";
   $("#mFile").value = "";
+  $("#mFileRow").style.display = record ? "none" : "";
+  alsoList();
   $("#markDialog").showModal();
 }
 
@@ -493,8 +613,17 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset]");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue]");
   if (!t) return;
+  if (t.dataset.delmetric) {
+    if (!confirm("Удалить измерение?")) return;
+    S.plan = await api("DELETE", "/api/metrics/" + t.dataset.delmetric); return render();
+  }
+  if (t.dataset.overdue !== undefined) {
+    if (!e.target.closest("summary")) return;
+    e.preventDefault(); S.openOverdue = !S.openOverdue; return render();
+  }
+  if (t.dataset.edit) return openMark(null, S.plan.history.find((r) => r.id === t.dataset.edit));
   if (t.dataset.demo) return loadDemo(t.dataset.demo);
   if (t.dataset.reset !== undefined) {
     if (!confirm("Отозвать согласие и удалить профиль, отметки, файлы и журнал вопросов? Это нельзя отменить.")) return;
@@ -539,6 +668,14 @@ document.addEventListener("submit", async (e) => {
       return go("home");
     } catch (err) { return toast(err.message); }
   }
+  if (e.target.id === "metricForm") {
+    e.preventDefault();
+    try {
+      S.plan = await api("POST", "/api/metrics", { kind: $("#mtKind").value, date: $("#mtDate").value,
+        value: $("#mtValue").value, value2: $("#mtValue2").value });
+      const kind = $("#mtKind").value; render(); $("#mtKind").value = kind; metricKindChanged(); return toast("Сохранено");
+    } catch (err) { return toast(err.message); }
+  }
   if (e.target.id !== "profileForm") return;
   e.preventDefault();
   const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
@@ -548,6 +685,15 @@ document.addEventListener("submit", async (e) => {
     render(); toast("Профиль сохранён, план пересчитан");
   } catch (err) { toast(err.message); }
 });
+
+function metricKindChanged() {
+  const pressure = $("#mtKind").value === "pressure";
+  $("#mtValue2Box").style.display = pressure ? "" : "none";
+  $("#mtValue2").required = pressure;
+  $("#mtValueLabel").textContent = pressure ? "Верхнее" : "Значение";
+  $("#mtValue").placeholder = pressure ? "например, 120" : "например, 5,2";
+}
+document.addEventListener("change", (e) => { if (e.target.id === "mtKind") metricKindChanged(); });
 
 let wikiTimer;
 document.addEventListener("input", (e) => {
@@ -565,6 +711,13 @@ $("#markForm").addEventListener("submit", async (e) => {
   const body = { test: $("#mTest").value, date: $("#mDate").value, result: $("#mResult").value };
   const file = $("#mFile").files[0];
   try {
+    if (S.editId) {
+      S.plan = await api("PUT", "/api/history/" + S.editId, body);
+      $("#markDialog").close(); render(); return toast("Запись исправлена, сроки пересчитаны");
+    }
+    if ($("#mAlso").classList.contains("show")) {
+      body.also = [...document.querySelectorAll("#mAlsoList input:checked")].map((i) => i.value);
+    }
     if (file) {
       if (file.size > 10 * 1024 * 1024) throw new Error("Файл больше 10 МБ");
       body.file = await readFile(file);
@@ -574,6 +727,7 @@ $("#markForm").addEventListener("submit", async (e) => {
   } catch (err) { toast(err.message); }
 });
 $("#mCancel").onclick = () => $("#markDialog").close();
+$("#mTest").onchange = alsoList;
 $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
 $("#demo").onchange = () => { if ($("#demo").value) loadDemo($("#demo").value); };

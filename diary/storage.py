@@ -12,6 +12,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
+from diary.metrics import clean_metric
 from diary.privacy import consent_record, detect_file_type
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -77,6 +78,42 @@ class Storage:
         self.save(state)
         return entry
 
+    def update_record(self, record_id, changes, known_tests=None):
+        """Исправить обследование, дату или результат. Файл остаётся прежним."""
+        state = self.load()
+        record = next((r for r in state["history"] if r.get("id") == record_id), None)
+        if record is None:
+            raise KeyError(record_id)
+        test = changes.get("test", record["test"])
+        record_date = changes.get("date", record["date"])
+        if not test or not record_date:
+            raise ValueError("Укажите обследование и дату прохождения.")
+        if known_tests is not None and test not in known_tests:
+            raise ValueError("Неизвестное обследование.")
+        date.fromisoformat(record_date)
+        record.update(test=str(test), date=record_date, result=str(changes.get("result", record.get("result")) or ""))
+        self.save(state)
+        return record
+
+    def add_metric(self, record, today=None):
+        """Показатель здоровья: давление, вес, холестерин или сахар."""
+        state = self.load()
+        if not state.get("consent"):
+            raise ValueError(NO_CONSENT)
+        entry = dict(clean_metric(record, today), id=uuid.uuid4().hex[:12])
+        state.setdefault("metrics", []).append(entry)
+        self.save(state)
+        return entry
+
+    def delete_metric(self, metric_id):
+        state = self.load()
+        kept = [m for m in state.get("metrics", []) if m.get("id") != metric_id]
+        if len(kept) == len(state.get("metrics", [])):
+            raise KeyError(metric_id)
+        state["metrics"] = kept
+        self.save(state)
+        return state
+
     def delete_record(self, record_id):
         state = self.load()
         kept = [r for r in state["history"] if r.get("id") != record_id]
@@ -101,7 +138,7 @@ class Storage:
             shutil.rmtree(self.files_dir)
         log = self.user_dir / "llm_log.jsonl"
         log.unlink(missing_ok=True)
-        state = {"name": "", "profile": {}, "history": [], "consent": None}
+        state = {"name": "", "profile": {}, "history": [], "metrics": [], "consent": None}
         self.save(state)
         return state
 
@@ -115,9 +152,10 @@ class Storage:
         if self.files_dir.exists():
             shutil.rmtree(self.files_dir)
         history = [dict(r, id=uuid.uuid4().hex[:12]) for r in demo.get("history", [])]
+        metrics = [dict(m, id=uuid.uuid4().hex[:12]) for m in demo.get("metrics", [])]
         # демо-пациенты вымышленные: согласие не требуется, но отмечаем, что это демо
         state = {"name": demo.get("name", demo_name), "profile": demo["profile"], "history": history,
-                 "consent": {"demo": True}}
+                 "metrics": metrics, "consent": {"demo": True}}
         self.save(state)
         return state
 

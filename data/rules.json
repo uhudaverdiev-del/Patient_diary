@@ -16,7 +16,9 @@
       "id": "profosmotr",
       "title": "Профилактический медицинский осмотр",
       "test": "profosmotr",
-      "satisfied_by": ["dispanserization"],
+      "satisfied_by": [
+        "dispanserization"
+      ],
       "sex": "any",
       "age_min": 18,
       "age_max": null,
@@ -62,7 +64,10 @@
       "interval_months": 24,
       "source": "404n",
       "clause": "п. 16",
-      "wiki": "fluorography"
+      "wiki": "fluorography",
+      "satisfied_by": [
+        "ct_chest"
+      ]
     },
     {
       "id": "ecg",
@@ -100,7 +105,9 @@
       "interval_months": 120,
       "source": "404n",
       "clause": "п. 16, пп. 11.1",
-      "wiki": "hepatitis_c"
+      "wiki": "hepatitis_c",
+      "effective_from": "2024-08-30",
+      "effective_note": "Анализ добавлен в профилактический осмотр приказом Минздрава № 378н с 30.08.2024."
     },
     {
       "id": "gyn_exam",
@@ -122,7 +129,9 @@
       "age_min": 18,
       "age_max": 64,
       "interval_months": 36,
-      "exclude_if": ["hysterectomy"],
+      "exclude_if": [
+        "hysterectomy"
+      ],
       "source": "404n_app2",
       "clause": "прил. 2, п. 1а",
       "wiki": "cervical_screening"
@@ -135,17 +144,31 @@
       "age_min": 40,
       "age_max": 75,
       "interval_months": 24,
-      "exclude_if": ["mastectomy"],
+      "exclude_if": [
+        "mastectomy"
+      ],
       "source": "404n_app2",
       "clause": "прил. 2, п. 1б",
-      "wiki": "mammography"
+      "wiki": "mammography",
+      "satisfied_by": [
+        {
+          "test": "ct_breast",
+          "interval_months": 12
+        }
+      ]
     },
     {
       "id": "psa",
       "title": "Анализ крови на ПСА (простатспецифический антиген)",
       "test": "psa",
       "sex": "male",
-      "at_ages": [45, 50, 55, 60, 64],
+      "at_ages": [
+        45,
+        50,
+        55,
+        60,
+        64
+      ],
       "source": "404n_app2",
       "clause": "прил. 2, п. 1в",
       "wiki": "psa"
@@ -179,10 +202,33 @@
       "title": "Эзофагогастродуоденоскопия (ЭГДС)",
       "test": "egd",
       "sex": "any",
-      "at_ages": [45],
+      "at_ages": [
+        45
+      ],
       "source": "404n_app2",
       "clause": "прил. 2, п. 1е",
       "wiki": "egd"
     }
-  ]
+  ],
+  "extra_tests": [
+    {
+      "test": "ct_chest",
+      "title": "КТ органов грудной клетки",
+      "counts_as": "fluorography",
+      "who": "засчитывается вместо флюорографии (п. 16 приказа № 404н)"
+    },
+    {
+      "test": "ct_breast",
+      "title": "КТ молочных желёз",
+      "counts_as": "mammography",
+      "who": "маммографию не проводят, если за последние 12 месяцев была КТ молочных желёз (прил. 2 приказа № 404н)"
+    }
+  ],
+  "risk_factors": {
+    "smoking": {
+      "title": "Фактор риска: курение",
+      "text": "Курение повышает риск инфаркта, инсульта и рака лёгких. На профилактическом осмотре и диспансеризации терапевт бесплатно проводит консультацию по отказу от курения: скажите врачу, что хотите бросить.",
+      "wiki": "risk_factors"
+    }
+  }
 }

@@ -2,8 +2,8 @@
 
 Файл .ics открывается в Google, Яндекс и Apple Календаре: каждое обследование
 становится событием в день срока с напоминаниями за неделю и утром в этот день.
-Просроченные обследования ставятся через неделю от сегодняшнего дня, чтобы
-пациент успел записаться.
+Просроченные обследования и те, о которых нет отметок, ставятся одним событием
+через неделю от сегодняшнего дня, чтобы пациент успел записаться.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -26,19 +26,22 @@ def reminders(plan, within_days=DUE_SOON_DAYS):
         if not item.get("next_due"):
             continue
         days = _days_left(item, today)
-        if item["status"] == "overdue" or days <= within_days:
+        if item["status"] in ("overdue", "no_data") or days <= within_days:
             result.append({
                 "id": item["id"], "test": item["test"], "title": item["title"],
                 "due": item["next_due"], "days_left": days,
                 "overdue": item["status"] == "overdue",
+                "no_data": item["status"] == "no_data",
                 "text": _reminder_text(item, days),
             })
-    result.sort(key=lambda r: (not r["overdue"], r["days_left"]))
+    result.sort(key=lambda r: (not r["overdue"], not r["no_data"], r["days_left"]))
     return result
 
 
 def _reminder_text(item, days):
     due = date.fromisoformat(item["next_due"]).strftime("%d.%m.%Y")
+    if item["status"] == "no_data":
+        return "нет отметки о прохождении, пройдите при ближайшем визите."
     if item["status"] == "overdue" and days < 0:
         return f"просрочено с {due}, запишитесь в поликлинику."
     if days <= 0:
@@ -52,6 +55,14 @@ def _days_word(n):
     if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
         return f"{n} дня"
     return f"{n} дней"
+
+
+def _tests_word(n):
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} обследование"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f"{n} обследования"
+    return f"{n} обследований"
 
 
 def _escape(text):
@@ -98,8 +109,9 @@ def _event(uid, day, summary, description, stamp, url=None, alarm_title=None):
 def to_ics(plan, now=None):
     """План в формате iCalendar (RFC 5545).
 
-    Все просроченные обследования собираются в одно событие «Записаться в поликлинику»
-    через неделю: их проходят за один визит на профосмотр или диспансеризацию.
+    Просроченные обследования и те, о которых нет отметок, собираются в одно событие
+    «Записаться в поликлинику» через неделю: их проходят за один визит на профосмотр
+    или диспансеризацию.
     Остальные — отдельными событиями в день срока.
     """
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Patient Diary//RU",
@@ -109,17 +121,23 @@ def to_ics(plan, now=None):
         stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
         items = [i for i in plan["items"] if i.get("next_due")]
         overdue = [i for i in items if i["status"] == "overdue"]
-        if overdue:
-            body = ["Пора пройти (срок уже наступил):"]
-            body += [f"• {i['title']} — срок {date.fromisoformat(i['next_due']).strftime('%d.%m.%Y')}" for i in overdue]
+        no_data = [i for i in items if i["status"] == "no_data"]
+        if overdue or no_data:
+            body = []
+            if overdue:
+                body.append("Срок уже наступил:")
+                body += [f"• {i['title']} — срок {date.fromisoformat(i['next_due']).strftime('%d.%m.%Y')}" for i in overdue]
+            if no_data:
+                body.append("Нет отметки о прохождении:")
+                body += [f"• {i['title']}" for i in no_data]
             body.append("Обычно всё это делается за один визит на профосмотр или диспансеризацию. "
                         "Запишитесь к терапевту по месту прикрепления или через Госуслуги. "
                         "Бесплатно по полису ОМС.")
             lines += _event(f"overdue-{plan['today']}", today + timedelta(days=OVERDUE_SHIFT_DAYS),
-                            f"Записаться в поликлинику: просрочено {len(overdue)}",
+                            f"Записаться в поликлинику: {_tests_word(len(overdue) + len(no_data))}",
                             "\n".join(body), stamp, alarm_title="записаться на диспансеризацию")
         for item in items:
-            if item["status"] == "overdue":
+            if item["status"] in ("overdue", "no_data"):
                 continue
             description = [f"Кому положено: {item['who']}."]
             if item.get("includes"):

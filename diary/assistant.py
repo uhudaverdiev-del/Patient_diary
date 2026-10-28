@@ -149,8 +149,12 @@ def local_answer(question, plan, wiki):
         return {"answer": title + "\n" + "\n".join(lines), "sources": sources}
 
     if "просроч" in q:
-        return listing("Просрочены:", [i for i in items if i["status"] == "overdue"],
-                       "Просроченных обследований нет.")
+        no_data = [i for i in items if i["status"] == "no_data"]
+        empty = "Просроченных обследований нет."
+        if no_data:
+            empty += (" Но нет отметок о прохождении: " + "; ".join(i["title"] for i in no_data)
+                      + ". Пройдите их при ближайшем визите или укажите даты.")
+        return listing("Просрочены:", [i for i in items if i["status"] == "overdue"], empty)
 
     asks_why = any(w in q for w in ("зачем", "почему", "для чего", "что такое", "что это"))
     mentioned = _find_items(plan, question)
