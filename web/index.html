@@ -149,8 +149,8 @@
   @media (max-width: 640px) { .home-top { grid-template-columns: 1fr; } }
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) {
-    .item { grid-template-columns: 6px 1fr; }
-    .actions { grid-column: 2; flex-direction: row; align-items: center; }
+    .item { grid-template-columns: 6px minmax(0, 1fr); }
+    .actions { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
   }
 </style>
 </head>
