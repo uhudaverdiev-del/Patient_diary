@@ -62,3 +62,20 @@ class VaccinesInReportTest(unittest.TestCase):
         html = render_report(plan, {})
         self.assertIn("Прививки (2)", html)
         self.assertIn("приказа № 1122н", html)
+
+
+class PreparationTest(unittest.TestCase):
+    def test_every_test_has_preparation(self):
+        from app import test_catalog
+        from diary.engine import load_rules
+        for entry in test_catalog(load_rules()):
+            self.assertIsNotNone(entry["prep"], entry["test"])
+            self.assertTrue(entry["prep"]["before"], entry["test"])
+            self.assertIn("Паспорт", entry["prep"]["bring"])
+
+    def test_report_bring_list_without_repeats(self):
+        html = render_report(demo_plan("anna"), {})
+        self.assertIn("Как подготовиться", html)
+        self.assertEqual(html.count("<li>Паспорт</li>"), 1)
+        self.assertIn("дезодорант", html)  # маммография просрочена у Анны
+        self.assertIn("Прививка от дифтерии и столбняка:</b>", html)

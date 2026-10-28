@@ -198,6 +198,9 @@
     </div>
   </form>
 </dialog>
+<dialog id="prepDialog">
+  <div class="card" id="prepBody"></div>
+</dialog>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -247,6 +250,7 @@ function itemHtml(it, compact) {
     </div>
     <div class="actions">
       <button class="btn" data-mark="${esc(it.test)}">Пройдено</button>
+      <button class="btn ghost" data-prep="${esc(it.test)}">Как подготовиться</button>
       ${compact ? "" : `<button class="btn ghost" data-wiki="${esc(it.wiki)}">Зачем это?</button>`}
     </div>
   </div>`;
@@ -667,6 +671,21 @@ function openMark(test, record) {
   $("#markDialog").showModal();
 }
 
+function openPrep(test) {
+  const t = S.tests.find((x) => x.test === test);
+  if (!t || !t.prep) return toast("Для этого обследования особой подготовки нет");
+  const list = (arr) => `<ul style="margin:4px 0 12px;padding-left:20px">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  $("#prepBody").innerHTML = `<h2 style="margin-top:0">Как подготовиться: ${esc(t.title)}</h2>
+    <b>До визита</b>${list(t.prep.before)}
+    <b>Взять с собой</b>${list(t.prep.bring)}
+    <p class="muted" style="font-size:13px">${esc(t.prep.note)}</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn ghost" data-closeprep>Закрыть</button>
+      <button type="button" class="btn" data-mark="${esc(t.test)}">Отметить пройденным</button>
+    </div>`;
+  $("#prepDialog").showModal();
+}
+
 function readFile(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -677,8 +696,11 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue]");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep]");
   if (!t) return;
+  if ($("#prepDialog").open && (t.dataset.mark || t.dataset.closeprep !== undefined)) $("#prepDialog").close();
+  if (t.dataset.closeprep !== undefined) return;
+  if (t.dataset.prep) return openPrep(t.dataset.prep);
   if (t.dataset.delmetric) {
     if (!confirm("Удалить измерение?")) return;
     S.plan = await api("DELETE", "/api/metrics/" + t.dataset.delmetric); return render();

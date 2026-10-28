@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from diary.assistant import Assistant
+from diary.preparation import prep_for
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules, parse_date
 from diary.metrics import summarize
@@ -35,6 +36,8 @@ def test_catalog(rules_data):
         seen[rule["test"]]["who"].append(rule.get("who") or describe_rule(rule))
     for extra in rules_data.get("extra_tests", []):
         seen[extra["test"]] = {"test": extra["test"], "title": extra["title"], "who": [extra["who"]]}
+    for entry in seen.values():
+        entry["prep"] = prep_for(entry["test"])
     return list(seen.values())
 
 

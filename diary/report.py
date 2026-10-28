@@ -7,6 +7,8 @@
 from datetime import date
 from html import escape
 
+from diary.preparation import bring_list, load_preparation, prep_for
+
 CONDITIONS = {
     "mastectomy": "перенесена мастэктомия",
     "hysterectomy": "перенесена экстирпация (удаление) матки",
@@ -121,6 +123,7 @@ def render_report(plan, test_titles):
 <h2>О чём сказать врачу</h2>
 <ol>{''.join(f'<li>{_e(q)}</li>' for q in doctor_questions(plan))}</ol>
 {metrics_html(plan)}
+{prep_html(plan)}
 {table('Просрочено', overdue, 'overdue')}
 {table('Скоро необходимо пройти', soon, 'soon')}
 {table('Нет отметки о прохождении', no_data, 'no_data')}
@@ -132,6 +135,23 @@ def render_report(plan, test_titles):
 <p class="foot">Памятка составлена сервисом «Дневник здоровья» по возрасту, полу и отметкам пациента.
 Это не медицинское заключение: окончательный объём обследований определяет врач.</p>"""
     return _page(body)
+
+
+def due_now(plan):
+    """Что пора пройти: обследования и обязательные прививки, которые сейчас не актуальны."""
+    items = [i for i in plan["items"] if i["status"] != "actual" or i.get("todo_this_year")]
+    return items + [v for v in plan.get("vaccines") or [] if not v.get("conditional") and v["status"] != "actual"]
+
+
+def prep_html(plan):
+    due = [i for i in due_now(plan) if prep_for(i["test"])]
+    if not due:
+        return ""
+    steps = "".join(
+        f"<li><b>{_e(i['title'])}:</b> {_e(' '.join(prep_for(i['test'])['before']))}</li>" for i in due)
+    things = "".join(f"<li>{_e(t)}</li>" for t in bring_list(i["test"] for i in due))
+    return (f"<h2>Как подготовиться</h2><ul>{steps}</ul><h2>Взять с собой</h2><ul>{things}</ul>"
+            f"<p class='foot'>{_e(load_preparation()['note'])}</p>")
 
 
 def metrics_html(plan):
