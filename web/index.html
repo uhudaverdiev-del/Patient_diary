@@ -57,6 +57,10 @@
   .month.now { border-color: var(--accent); }
   .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
   .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .demos { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .demo-card { text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+  .demo-card:hover { border-color: var(--accent); }
+  .demo-card .muted { font-size: 13px; }
   .reminders ul { margin: 0; padding-left: 18px; }
   .reminders li { margin: 4px 0; }
   .reminders li.overdue::marker { color: var(--bad); }
@@ -238,6 +242,30 @@ async function loadWikiList(q) {
   S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
 }
 
+function isEmpty(plan) {
+  const p = plan.profile || {};
+  return !p.birth_date && !p.sex && !(plan.history || []).length;
+}
+
+function welcomeHtml() {
+  return `<h1>Какие обследования вам положены бесплатно?</h1>
+    <div class="muted">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация.
+      Укажите дату рождения и пол, и сервис составит личный план по приказу Минздрава № 404н, со сроками и напоминаниями.</div>
+    <form class="card welcome" id="welcomeForm" style="margin-top:16px;max-width:520px">
+      <div class="row"><label for="wName">Как к вам обращаться</label><input id="wName" placeholder="Например, Анна" autocomplete="given-name"></div>
+      <div class="row"><label for="wBirth">Дата рождения *</label><input type="date" id="wBirth" required></div>
+      <div class="row"><label for="wSex">Пол *</label><select id="wSex" required><option value="">— выбрать —</option><option value="female">женский</option><option value="male">мужской</option></select></div>
+      <button class="btn" type="submit">Показать мой план</button>
+      <div class="muted" style="font-size:13px;margin-top:8px">Данные хранятся только на этом компьютере. Позже можно отметить пройденные обследования и уточнить профиль.</div>
+    </form>
+    <h2>Или посмотрите пример</h2>
+    <div class="grid demos">${S.demos.map((d) => `<button class="card demo-card" data-demo="${esc(d.id)}"><b>${esc(d.name)}</b><span class="muted">${esc(d.description)}</span></button>`).join("")}</div>`;
+}
+
+async function loadDemo(id) {
+  S.plan = await api("POST", "/api/demo", { id }); S.chat = []; $("#demo").value = id; go("home"); toast("Загружен демо-пациент");
+}
+
 function icsButton() {
   return `<a class="btn" href="/calendar.ics${todayParam("/calendar.ics")}" download="health-diary.ics">Добавить в календарь телефона</a>`;
 }
@@ -263,6 +291,7 @@ function remindersHtml(plan) {
 const VIEWS = {
   home(plan) {
     const name = plan.name ? esc(plan.name) : "Добро пожаловать";
+    if (isEmpty(plan)) return welcomeHtml();
     if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
     const s = plan.summary;
     const next = plan.items.filter((i) => i.status !== "actual").slice(0, 5);
@@ -354,7 +383,8 @@ const VIEWS = {
         <div class="row checks"><label>Перенесённые операции, которые меняют план</label>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
         <button class="btn" type="submit">Сохранить и пересчитать план</button>
-      </form>`;
+      </form>
+      <p style="margin-top:16px"><button class="btn danger" type="button" data-reset>Удалить мои данные и начать заново</button></p>`;
   },
 
   assistant() {
@@ -431,8 +461,13 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask]");
+  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset]");
   if (!t) return;
+  if (t.dataset.demo) return loadDemo(t.dataset.demo);
+  if (t.dataset.reset !== undefined) {
+    if (!confirm("Удалить профиль и все отметки? Это нельзя отменить.")) return;
+    S.plan = await api("POST", "/api/reset"); S.chat = []; $("#demo").value = ""; go("home"); return toast("Данные удалены");
+  }
   if (t.dataset.ask) return ask(t.dataset.ask);
   if (t.dataset.article) { e.preventDefault(); return openArticle(t.dataset.article); }
   if (t.dataset.wikilist) { e.preventDefault(); S.article = null; return go("wiki"); }
@@ -464,6 +499,13 @@ async function ask(question) {
 
 document.addEventListener("submit", async (e) => {
   if (e.target.id === "askForm") { e.preventDefault(); return ask($("#askInput").value); }
+  if (e.target.id === "welcomeForm") {
+    e.preventDefault();
+    try {
+      S.plan = await api("POST", "/api/profile", { name: $("#wName").value.trim(), profile: { birth_date: $("#wBirth").value, sex: $("#wSex").value } });
+      return go("home");
+    } catch (err) { return toast(err.message); }
+  }
   if (e.target.id !== "profileForm") return;
   e.preventDefault();
   const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
@@ -501,10 +543,7 @@ $("#markForm").addEventListener("submit", async (e) => {
 $("#mCancel").onclick = () => $("#markDialog").close();
 $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
-$("#demo").onchange = async () => {
-  if (!$("#demo").value) return;
-  S.plan = await api("POST", "/api/demo", { id: $("#demo").value }); S.chat = []; go("home"); toast("Загружен демо-пациент");
-};
+$("#demo").onchange = () => { if ($("#demo").value) loadDemo($("#demo").value); };
 
 (async function init() {
   let info;

@@ -64,6 +64,19 @@ class ApiScenarioTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "/api/demo", {"id": "../secret"})[0], 404)
         self.assertIsNone(self.app.storage.file_path("../state.json"))
 
+    def test_reset_clears_everything(self):
+        self.call("POST", "/api/demo", {"id": "anna"})
+        code, plan = self.call("POST", "/api/reset")
+        self.assertEqual(code, 200)
+        self.assertEqual(plan["profile"], {})
+        self.assertEqual(plan["history"], [])
+        self.assertFalse(plan["ready"])
+
+    def test_report_and_calendar(self):
+        self.call("POST", "/api/demo", {"id": "anna"})
+        self.assertIn("Памятка для терапевта", self.app.report_page("2026-10-24").decode("utf-8"))
+        self.assertIn("BEGIN:VCALENDAR", self.app.calendar_file("2026-10-24").decode("utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
