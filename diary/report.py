@@ -70,6 +70,7 @@ def render_report(plan, test_titles):
     items = plan["items"]
     overdue = [i for i in items if i["status"] == "overdue"]
     soon = [i for i in items if i["status"] == "soon"]
+    no_data = [i for i in items if i["status"] == "no_data"]
     this_year = [i for i in items if i["status"] == "actual" and i["next_due"]
                  and date.fromisoformat(i["next_due"]).year <= today.year]
 
@@ -106,6 +107,7 @@ def render_report(plan, test_titles):
 <ol>{''.join(f'<li>{_e(q)}</li>' for q in doctor_questions(plan))}</ol>
 {table('Просрочено', overdue, 'overdue')}
 {table('Скоро необходимо пройти', soon, 'soon')}
+{table('Нет отметки о прохождении', no_data, 'no_data')}
 {table(f'Ещё в {today.year} году', this_year, 'actual')}
 <h2>Уже пройдено</h2>
 {f'<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th></tr></thead><tbody>{history_html}</tbody></table>'
@@ -123,7 +125,7 @@ def _page(body):
   body {{ font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #1d2730; max-width: 820px; margin: 24px auto; padding: 0 16px; }}
   h1 {{ margin: 0 0 4px; font-size: 24px; }}
   h2 {{ font-size: 17px; margin: 22px 0 8px; border-bottom: 2px solid #e1e6eb; padding-bottom: 4px; }}
-  h2.overdue {{ color: #c62828; }} h2.soon {{ color: #a15c00; }} h2.actual {{ color: #2e7d32; }}
+  h2.overdue {{ color: #c62828; }} h2.soon {{ color: #a15c00; }} h2.actual {{ color: #2e7d32; }} h2.no_data {{ color: #5d6b78; }}
   .meta {{ color: #5d6b78; margin: 0 0 12px; }}
   .box {{ background: #e8f0fd; border-radius: 8px; padding: 10px 12px; }}
   table {{ width: 100%; border-collapse: collapse; }}

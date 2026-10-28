@@ -8,7 +8,7 @@
   :root {
     --bg: #f5f7f9; --card: #ffffff; --text: #1d2730; --muted: #5d6b78; --line: #e1e6eb;
     --accent: #1f6feb; --accent-soft: #e8f0fd;
-    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea;
+    --ok: #2e7d32; --ok-soft: #e6f4e7; --soon: #a15c00; --soon-soft: #fff3df; --bad: #c62828; --bad-soft: #fdeaea; --nd: #5d6b78; --nd-soft: #eceff2;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
@@ -31,6 +31,7 @@
   .tile.overdue { background: var(--bad-soft); color: var(--bad); }
   .tile.soon { background: var(--soon-soft); color: var(--soon); }
   .tile.actual { background: var(--ok-soft); color: var(--ok); }
+  .tile.no_data { background: var(--nd-soft); color: var(--nd); }
   .tile.progress { background: var(--accent-soft); color: var(--accent); }
   .meter { height: 8px; background: rgba(0,0,0,.08); border-radius: 4px; margin-top: 6px; overflow: hidden; }
   .meter i { display: block; height: 100%; background: currentColor; }
@@ -38,10 +39,17 @@
   .pill.overdue { background: var(--bad-soft); color: var(--bad); }
   .pill.soon { background: var(--soon-soft); color: var(--soon); }
   .pill.actual { background: var(--ok-soft); color: var(--ok); }
+  .pill.no_data { background: var(--nd-soft); color: var(--nd); }
   .item { display: grid; grid-template-columns: 6px 1fr auto; gap: 14px; padding: 14px 16px; }
   .item::before { content: ""; border-radius: 3px; background: var(--ok); }
   .item.overdue::before { background: var(--bad); }
   .item.soon::before { background: var(--soon); }
+  .item.no_data::before { background: #b7c0c8; }
+  .item.no_data .note { color: var(--muted); }
+  .risk { border-left: 4px solid var(--soon); margin-top: 16px; }
+  .risk h3 { margin: 0 0 4px; font-size: 16px; }
+  details.group > summary { cursor: pointer; font-size: 18px; font-weight: 700; margin: 24px 0 10px; }
+  details.group > summary span { font-size: 14px; font-weight: 400; color: var(--accent); margin-left: 6px; }
   .item h3 { margin: 0 0 2px; font-size: 16px; }
   .item .dates { margin: 6px 0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
   .item .note { font-size: 14px; color: var(--soon); margin: 4px 0 0; }
@@ -57,6 +65,7 @@
   .month.now { border-color: var(--accent); }
   .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
   .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .chip.no_data { border-color: #b7c0c8; background: var(--nd-soft); }
   .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 400; color: var(--muted); margin: 4px 0 12px; }
   .consent input { width: auto; margin-top: 3px; flex: none; }
   .privacy-note { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
@@ -68,6 +77,10 @@
   .reminders li { margin: 4px 0; }
   .reminders li.overdue::marker { color: var(--bad); }
   .reminders li.soon::marker { color: var(--soon); }
+  .reminders li.no_data::marker { color: var(--nd); }
+  #mAlso { display: none; }
+  #mAlso.show { display: grid; }
+  #mAlso .checks { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .reminders li a { font-size: 13px; margin-left: 6px; }
   .chip.soon { border-color: var(--soon); background: var(--soon-soft); }
   .chip small { display: block; color: var(--muted); }
@@ -140,8 +153,11 @@
     <h2 style="margin-top:0">Отметить пройденное обследование</h2>
     <div class="row"><label for="mTest">Обследование</label><select id="mTest" required></select></div>
     <div class="row"><label for="mDate">Дата прохождения</label><input type="date" id="mDate" required></div>
+    <div class="row" id="mAlso"><label>Что из этого вам сделали в тот же день</label>
+      <div class="muted" style="font-size:13px">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
+      <div class="checks" id="mAlsoList"></div></div>
     <div class="row"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
-    <div class="row"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+    <div class="row" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button type="button" class="btn ghost" id="mCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
@@ -306,7 +322,7 @@ function remindersHtml(plan) {
   const shown = list.slice(0, 5);
   return `<div class="card reminders" style="margin-top:16px">
       <h3 style="margin-top:0">Напоминания</h3>
-      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
+      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : r.no_data ? "no_data" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
           <a href="#" data-mark="${esc(r.test)}">Отметить пройденным</a></li>`).join("")}</ul>
           ${list.length > shown.length ? `<div class="muted">И ещё ${list.length - shown.length} — см. «Мой план».</div>` : ""}`
         : `<p class="muted">В ближайшие 30 дней ничего проходить не нужно.</p>`}
@@ -315,22 +331,30 @@ function remindersHtml(plan) {
     </div>`;
 }
 
+function riskHtml(plan) {
+  return (plan.risk_factors || []).map((r) => `<div class="card risk"><h3>${esc(r.title)}</h3>
+    <div>${esc(r.text)}</div>
+    ${r.wiki ? `<p style="margin:8px 0 0"><a href="#" data-article="${esc(r.wiki)}">Подробнее о факторах риска</a></p>` : ""}</div>`).join("");
+}
+
 const VIEWS = {
   home(plan) {
     const name = plan.name ? esc(plan.name) : "Добро пожаловать";
     if (isEmpty(plan)) return welcomeHtml();
     if (!plan.ready) return `<h1>${name}</h1>${problemsHtml(plan)}`;
     const s = plan.summary;
-    const next = plan.items.filter((i) => i.status !== "actual").slice(0, 5);
+    const next = plan.items.filter((i) => i.status !== "actual" || i.todo_this_year).slice(0, 5);
     return `<h1>${name}</h1>
       <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
       ${problemsHtml(plan)}
       <div class="grid tiles">
         <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
         <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
+        <div class="tile no_data"><b>${s.counts.no_data}</b>нет данных</div>
         <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
-        <div class="tile progress"><b>${s.progress_percent}%</b>план выполнен<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
+        <div class="tile progress"><b>${s.progress_percent}%</b>пройдено ${s.done} из ${s.required}<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
       </div>
+      ${riskHtml(plan)}
       ${remindersHtml(plan)}
       <div class="card" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <b style="margin-right:8px">Спросите ассистента:</b>
@@ -345,13 +369,20 @@ const VIEWS = {
 
   plan(plan) {
     if (!plan.ready) return `<h1>Мой план</h1>${problemsHtml(plan)}`;
-    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"], ["actual", "Актуально"]];
+    const groups = [["overdue", "Просрочено"], ["soon", "Скоро необходимо пройти"],
+      ["no_data", "Нет данных: пройти при ближайшем визите"], ["actual", "Актуально"]];
     return `<h1>Мой план профилактики</h1>
-      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.</div>
+      <div class="muted">Сформирован автоматически по возрасту, полу и пройденным обследованиям.
+        «Нет данных» значит, что отметок о прохождении нет: если уже проходили, нажмите «Пройдено» и укажите дату.</div>
       ${problemsHtml(plan)}
       ${groups.map(([st, title]) => {
         const items = plan.items.filter((i) => i.status === st);
-        return items.length ? `<h2>${title} (${items.length})</h2><div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>` : "";
+        if (!items.length) return "";
+        const list = `<div class="grid">${items.map((i) => itemHtml(i)).join("")}</div>`;
+        // Просроченное сворачиваем, чтобы список не пугал, но и не прячем: план должен соответствовать приказу.
+        if (st === "overdue") return `<details class="group" ${S.openOverdue ? "open" : ""} data-overdue>
+          <summary>${title} (${items.length})<span>${S.openOverdue ? "свернуть" : "показать"}</span></summary>${list}</details>`;
+        return `<h2>${title} (${items.length})</h2>${list}`;
       }).join("")}`;
   },
 
@@ -362,15 +393,15 @@ const VIEWS = {
     for (let k = 0; k < 12; k++) months.push(new Date(today.getFullYear(), today.getMonth() + k, 1));
     const key = (d) => d.getFullYear() * 12 + d.getMonth();
     const chip = (i) => `<span class="chip ${i.status}" data-mark="${esc(i.test)}">${esc(i.title)}<small>${esc(i.status_label)} · ${fmt(i.next_due)}</small></span>`;
-    const overdue = plan.items.filter((i) => i.status === "overdue");
+    const overdue = plan.items.filter((i) => i.status === "overdue" || i.status === "no_data");
     const later = plan.items.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
     return `<h1>Календарь обследований</h1>
       <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
       <p>${icsButton()}</p>
       <div class="grid cal" style="margin-top:16px">
-        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Просрочено</h3>${overdue.map(chip).join("")}</div>` : ""}
+        ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
         ${months.map((m, idx) => {
-          const items = plan.items.filter((i) => i.status !== "overdue" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
+          const items = plan.items.filter((i) => i.status !== "overdue" && i.status !== "no_data" && i.next_due && key(new Date(i.next_due + "T00:00:00")) === key(m));
           return `<div class="card month ${idx === 0 ? "now" : ""}"><h3>${monthTitle(m)}</h3>
             ${items.length ? items.map(chip).join("") : `<span class="muted" style="font-size:13px">Ничего не запланировано</span>`}</div>`;
         }).join("")}
@@ -383,7 +414,8 @@ const VIEWS = {
     const rows = plan.history.map((r) => `<tr>
         <td>${fmt(r.date)}</td><td>${esc(titles[r.test] || r.test)}</td><td>${esc(r.result)}</td>
         <td>${r.file ? `<a href="/files/${encodeURIComponent(r.file.stored)}" target="_blank">${esc(r.file.name)}</a>` : ""}</td>
-        <td><button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
+        <td style="white-space:nowrap"><button class="btn ghost" data-edit="${esc(r.id)}">Изменить</button>
+          <button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
     return `<h1>Пройденные обследования</h1>
       <div class="muted">После каждой записи сроки и статусы в плане пересчитываются автоматически.</div>
       <p>${reportButton()}</p>
@@ -474,12 +506,28 @@ function render() {
 
 function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
 
-function openMark(test) {
-  $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === test ? "selected" : ""}>${esc(t.title)}</option>`).join("");
-  $("#mDate").value = S.plan.today;
+const BUNDLES = ["dispanserization", "profosmotr"];
+
+function alsoList() {
+  // Обследования из плана, которые входят в профосмотр и диспансеризацию.
+  // Отмечены по умолчанию те, что сейчас нужно пройти: обычно их и делают за этот визит.
+  const seen = new Set();
+  const items = (S.plan.items || []).filter((i) => !BUNDLES.includes(i.test) && !seen.has(i.test) && seen.add(i.test));
+  $("#mAlsoList").innerHTML = items.map((i) => `<label><input type="checkbox" value="${esc(i.test)}" ${i.status !== "actual" || i.todo_this_year ? "checked" : ""}> ${esc(i.title)}</label>`).join("");
+  $("#mAlso").classList.toggle("show", !S.editId && BUNDLES.includes($("#mTest").value) && items.length > 0);
+}
+
+function openMark(test, record) {
+  S.editId = record ? record.id : null;
+  const selected = record ? record.test : test;
+  $("#mTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}" ${t.test === selected ? "selected" : ""}>${esc(t.title)}</option>`).join("");
+  $("#markForm h2").textContent = record ? "Изменить запись" : "Отметить пройденное обследование";
+  $("#mDate").value = record ? record.date : S.plan.today;
   $("#mDate").max = S.plan.today;
-  $("#mResult").value = "";
+  $("#mResult").value = record ? record.result || "" : "";
   $("#mFile").value = "";
+  $("#mFileRow").style.display = record ? "none" : "";
+  alsoList();
   $("#markDialog").showModal();
 }
 
@@ -493,8 +541,13 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset]");
+  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue]");
   if (!t) return;
+  if (t.dataset.overdue !== undefined) {
+    if (!e.target.closest("summary")) return;
+    e.preventDefault(); S.openOverdue = !S.openOverdue; return render();
+  }
+  if (t.dataset.edit) return openMark(null, S.plan.history.find((r) => r.id === t.dataset.edit));
   if (t.dataset.demo) return loadDemo(t.dataset.demo);
   if (t.dataset.reset !== undefined) {
     if (!confirm("Отозвать согласие и удалить профиль, отметки, файлы и журнал вопросов? Это нельзя отменить.")) return;
@@ -565,6 +618,13 @@ $("#markForm").addEventListener("submit", async (e) => {
   const body = { test: $("#mTest").value, date: $("#mDate").value, result: $("#mResult").value };
   const file = $("#mFile").files[0];
   try {
+    if (S.editId) {
+      S.plan = await api("PUT", "/api/history/" + S.editId, body);
+      $("#markDialog").close(); render(); return toast("Запись исправлена, сроки пересчитаны");
+    }
+    if ($("#mAlso").classList.contains("show")) {
+      body.also = [...document.querySelectorAll("#mAlsoList input:checked")].map((i) => i.value);
+    }
     if (file) {
       if (file.size > 10 * 1024 * 1024) throw new Error("Файл больше 10 МБ");
       body.file = await readFile(file);
@@ -574,6 +634,7 @@ $("#markForm").addEventListener("submit", async (e) => {
   } catch (err) { toast(err.message); }
 });
 $("#mCancel").onclick = () => $("#markDialog").close();
+$("#mTest").onchange = alsoList;
 $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
 $("#demo").onchange = () => { if ($("#demo").value) loadDemo($("#demo").value); };

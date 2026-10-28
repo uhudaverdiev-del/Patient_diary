@@ -6,7 +6,11 @@
 Статусы:
   actual  — «актуально»: обследование пройдено, следующий срок ещё не скоро;
   soon    — «скоро необходимо пройти»: срок наступил или наступит в ближайшие soon_days дней;
-  overdue — «просрочено»: срок прошёл.
+  overdue — «просрочено»: обследование проходили, и срок следующего уже прошёл;
+  no_data — «нет данных»: отметок о прохождении нет, пройти при ближайшем визите.
+
+Возраст для правил — тот, который исполняется в текущем календарном году
+(так считает приказ № 404н), поэтому ПСА в 45 лет можно сдать в любой день этого года.
 """
 
 import json
@@ -19,7 +23,10 @@ STATUS_LABELS = {
     "actual": "актуально",
     "soon": "скоро необходимо пройти",
     "overdue": "просрочено",
+    "no_data": "нет данных",
 }
+
+STATUS_ORDER = {"overdue": 0, "soon": 1, "no_data": 2, "actual": 3}
 
 FIRST_VISIT_TESTS = ["profosmotr", "dispanserization"]
 
@@ -151,13 +158,34 @@ def check_profile(profile, today):
     return age, problems
 
 
-def _last_done(history, tests, today):
-    dates = []
+def _sources_for(rule):
+    """Какие обследования засчитываются вместо этого и через сколько месяцев после них снова пора.
+
+    satisfied_by: ["ct_chest"] или [{"test": "ct_breast", "interval_months": 12}].
+    """
+    months = rule.get("interval_months")
+    result = {rule["test"]: months}
+    for extra in rule.get("satisfied_by", []):
+        if isinstance(extra, dict):
+            result[extra["test"]] = extra.get("interval_months", months)
+        else:
+            result[extra] = months
+    return result
+
+
+def _done_dates(history, tests, today):
+    """[(дата, обследование)] для записей с датой не позже сегодняшней."""
+    found = []
     for record in history:
         if record.get("test") in tests:
             d = parse_date(record.get("date"))
             if d is not None and d <= today:
-                dates.append(d)
+                found.append((d, record["test"]))
+    return found
+
+
+def _last_done(history, tests, today):
+    dates = [d for d, _ in _done_dates(history, tests, today)]
     return max(dates) if dates else None
 
 
@@ -169,30 +197,48 @@ def _status_for(due, today, soon_days):
     return "actual"
 
 
+def year_start(birth, age):
+    """1 января года, в котором человеку исполняется age лет.
+
+    По приказу № 404н «годом прохождения … считается календарный год,
+    в котором гражданин достигает соответствующего возраста».
+    """
+    return date(birth.year + age, 1, 1)
+
+
 def _applies_to_sex(rule, sex):
     return rule["sex"] == "any" or rule["sex"] == sex
 
 
-def _plan_interval_rule(rule, birth, age, today, history, soon_days, horizon_days,
-                        test_active_now=False, continues_after=False):
-    tests = [rule["test"]] + rule.get("satisfied_by", [])
-    last = _last_done(history, tests, today)
-    lo, hi = rule["age_min"], rule.get("age_max")
-    start = birthday_at(birth, lo)
-    end = birthday_at(birth, hi + 1) if hi is not None else None  # первый день, когда правило уже не действует
-    notes = []
+NO_DATA_NOTE = ("Нет отметки о прохождении. Пройдите при ближайшем визите в поликлинику "
+                "или укажите дату, если уже проходили, и срок пересчитается.")
 
-    in_band = age >= lo and (hi is None or age <= hi)
-    first_visit_case = rule.get("first_visit") and age < lo
+
+def _plan_interval_rule(rule, birth, year_age, today, history, soon_days, horizon_days,
+                        test_active_now=False, continues_after=False, titles=None):
+    sources = _sources_for(rule)
+    done = _done_dates(history, sources, today)
+    last = max((d for d, _ in done), default=None)
+    lo, hi = rule["age_min"], rule.get("age_max")
+    start = year_start(birth, lo)
+    effective = parse_date(rule.get("effective_from"))
+    if effective and effective > start:
+        start = effective
+    end = year_start(birth, hi + 1) if hi is not None else None  # с этого дня правило уже не действует
+    notes = [rule["effective_note"]] if rule.get("effective_note") and last is None else []
+
+    in_band = year_age >= lo and (hi is None or year_age <= hi)
+    first_visit_case = rule.get("first_visit") and year_age < lo
 
     if not in_band and not first_visit_case:
-        if age < lo and not test_active_now and (start - today).days <= horizon_days:
+        if year_age < lo and not test_active_now and (start - today).days <= horizon_days:
             # Обследование начнётся в ближайший год: показываем заранее.
             return {
                 "last_date": last,
                 "next_due": start,
                 "status": _status_for(start, today, soon_days),
-                "notes": [f"Станет положено с {lo} лет."],
+                "notes": [f"Станет положено в {start.year} году, когда вам исполнится {lo}."],
+                "upcoming": True,
             }
         return None
 
@@ -211,11 +257,13 @@ def _plan_interval_rule(rule, birth, age, today, history, soon_days, horizon_day
                 "status": _status_for(start, today, soon_days),
                 "notes": [f"Регулярно с {lo} лет."],
             }
-        notes.append("Проводится при первом профилактическом осмотре. Если уже делали, укажите дату.")
-        return {"last_date": None, "next_due": today, "status": "soon", "notes": notes, "needs_date": True}
+        return {"last_date": None, "next_due": today, "status": "no_data", "needs_date": True,
+                "notes": ["Проводится при первом профилактическом осмотре.", NO_DATA_NOTE]}
 
     if last is not None:
-        due = add_months(last, rule["interval_months"])
+        # Срок считаем от каждой подходящей записи: после КТ молочных желёз
+        # маммография нужна через 12 месяцев, а после самой маммографии — через 24.
+        due = max(add_months(d, sources[t]) for d, t in done)
         if end is not None and due >= end and continues_after:
             # Со следующего возраста действует другое правило с тем же обследованием
             # (например, диспансеризация ежегодно с 40 лет).
@@ -227,44 +275,53 @@ def _plan_interval_rule(rule, birth, age, today, history, soon_days, horizon_day
                 "status": "actual",
                 "notes": [f"По возрасту это обследование больше не требуется после {hi} лет."],
             }
+        last_day, last_test = max(done)
+        if last_test != rule["test"]:
+            title = (titles or {}).get(last_test, last_test)
+            notes.append(f"Засчитано: {title} от {last_day.strftime('%d.%m.%Y')}.")
         return {"last_date": last, "next_due": due, "status": _status_for(due, today, soon_days), "notes": notes}
 
-    # Нет данных о прохождении. Если с момента, когда обследование стало
-    # положено, прошёл целый интервал, — по нормативам оно уже просрочено.
-    deadline = add_months(start, rule["interval_months"])
-    notes.append("Нет данных о прохождении. Если проходили, укажите дату, и срок пересчитается.")
-    if deadline < today:
-        notes.insert(0, f"По нормативам его нужно было пройти до {deadline.strftime('%d.%m.%Y')}. Пройдите при ближайшем визите.")
-        return {"last_date": None, "next_due": today, "status": "overdue", "notes": notes, "needs_date": True}
-    return {"last_date": None, "next_due": today, "status": "soon", "notes": notes, "needs_date": True}
+    # Отметок нет: не знаем, проходил ли человек обследование, поэтому не пишем
+    # «просрочено», а предлагаем пройти при ближайшем визите.
+    notes.append(NO_DATA_NOTE)
+    return {"last_date": None, "next_due": today, "status": "no_data", "notes": notes, "needs_date": True}
 
 
-def _plan_age_rule(rule, birth, age, today, history, soon_days, horizon_days):
+def _plan_age_rule(rule, birth, year_age, today, history, soon_days, horizon_days):
+    """Обследование в определённом возрасте (ПСА, ЭГДС): в любой день календарного года."""
     ages = sorted(rule["at_ages"])
     tests = [rule["test"]] + rule.get("satisfied_by", [])
-    if age in ages:
-        window_start = birthday_at(birth, age)
-        window_end = birthday_at(birth, age + 1) - timedelta(days=1)
-        done = [r for r in history if r.get("test") in tests
-                and parse_date(r.get("date")) and window_start <= parse_date(r["date"]) <= today]
+    last = _last_done(history, tests, today)
+    if year_age in ages:
+        year_end = date(today.year, 12, 31)
+        done = last is not None and last.year == today.year
         if not done:
             return {
-                "last_date": _last_done(history, tests, today),
-                "next_due": window_end,
-                "status": "soon",
-                "notes": [f"Положено в {age} лет: пройдите до {window_end.strftime('%d.%m.%Y')}."],
+                "last_date": last,
+                "next_due": year_end,
+                "status": _status_for(year_end, today, soon_days),
+                "notes": [f"Положено в год, когда исполняется {year_age}: пройдите в любой день до {year_end.strftime('%d.%m.%Y')}."],
+                "todo_this_year": True,
             }
-    future = [a for a in ages if a > age]
+    future = [a for a in ages if a > year_age]
+    done_this_year = year_age in ages and last is not None and last.year == today.year
     if not future:
+        if done_this_year:
+            return {"last_date": last, "next_due": None, "status": "actual",
+                    "notes": ["Пройдено. По возрасту больше не требуется."]}
         return None
-    nxt = birthday_at(birth, future[0])
+    nxt = year_start(birth, future[0])
+    if done_this_year:
+        return {"last_date": last, "next_due": nxt, "status": "actual",
+                "notes": [f"Пройдено в этом году. Следующий раз — в {nxt.year} году, когда вам исполнится {future[0]}."]}
     if (nxt - today).days > horizon_days:
         return None
     return {
-        "last_date": _last_done(history, tests, today),
+        "last_date": last,
         "next_due": nxt,
         "status": _status_for(nxt, today, soon_days),
-        "notes": [f"Положено в {future[0]} лет."],
+        "notes": [f"Положено в {nxt.year} году, когда вам исполнится {future[0]}."],
+        "upcoming": True,
     }
 
 
@@ -286,6 +343,7 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
         "ready": not any(p["level"] == "blocking" for p in problems),
         "problems": problems,
         "items": [],
+        "risk_factors": [],
     }
     if not result["ready"]:
         return result
@@ -303,9 +361,13 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
     sex = profile.get("sex")
     conditions = set(profile.get("conditions") or [])
 
-    def in_band(r):
-        return "age_min" in r and r["age_min"] <= age and (r.get("age_max") is None or age <= r["age_max"])
+    year_age = today.year - birth.year  # сколько исполняется в этом году
 
+    def in_band(r):
+        return "age_min" in r and r["age_min"] <= year_age and (r.get("age_max") is None or year_age <= r["age_max"])
+
+    titles = {r["test"]: r["title"] for r in rules_data["rules"]}
+    titles.update({t["test"]: t["title"] for t in rules_data.get("extra_tests", [])})
     active_tests = {r["test"] for r in rules_data["rules"] if in_band(r)}
 
     for rule in rules_data["rules"]:
@@ -316,15 +378,15 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
         if conditions.intersection(rule.get("exclude_if", [])):
             continue
         if "at_ages" in rule:
-            planned = _plan_age_rule(rule, birth, age, today, history, soon_days, horizon_days)
+            planned = _plan_age_rule(rule, birth, year_age, today, history, soon_days, horizon_days)
         else:
             continues_after = rule.get("age_max") is not None and any(
                 r["test"] == rule["test"] and r.get("age_min") == rule["age_max"] + 1
                 for r in rules_data["rules"])
             planned = _plan_interval_rule(
-                rule, birth, age, today, history, soon_days, horizon_days,
+                rule, birth, year_age, today, history, soon_days, horizon_days,
                 test_active_now=rule["test"] in active_tests and not in_band(rule),
-                continues_after=continues_after)
+                continues_after=continues_after, titles=titles)
         if planned is None:
             continue
         source = rules_data["sources"][rule["source"]]
@@ -337,21 +399,50 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
             "last_date": planned["last_date"].isoformat() if planned["last_date"] else None,
             "next_due": planned["next_due"].isoformat() if planned["next_due"] else None,
             "status": planned["status"],
-            "status_label": STATUS_LABELS[planned["status"]],
+            "status_label": ("пройти в этом году" if planned.get("todo_this_year") and planned["status"] == "actual"
+                             else STATUS_LABELS[planned["status"]]),
             "needs_date": planned.get("needs_date", False),
+            "upcoming": planned.get("upcoming", False),
+            "todo_this_year": planned.get("todo_this_year", False),
             "notes": planned["notes"],
             "source": {"title": source["title"], "url": source["url"], "clause": rule["clause"]},
             "wiki": rule.get("wiki"),
             "free_oms": True,
         })
 
-    order = {"overdue": 0, "soon": 1, "actual": 2}
+    _merge_profosmotr(result["items"])
+    order = STATUS_ORDER
     result["items"].sort(key=lambda i: (order[i["status"]], i["next_due"] or "9999"))
     counts = {s: sum(1 for i in result["items"] if i["status"] == s) for s in order}
     total = len(result["items"])
+    # Прогресс считаем только по тому, что положено уже сейчас: обследования, которые
+    # начнутся позже, не учитываем, а ПСА «в этом году» засчитываем, только когда сдан.
+    required = [i for i in result["items"] if not i["upcoming"]]
+    done = [i for i in required if i["status"] == "actual" and not i["todo_this_year"]]
     result["summary"] = {
         "total": total,
         "counts": counts,
-        "progress_percent": round(100 * counts["actual"] / total) if total else 0,
+        "required": len(required),
+        "done": len(done),
+        "progress_percent": round(100 * len(done) / len(required)) if required else 100,
     }
+    result["risk_factors"] = [dict(rules_data["risk_factors"][key], id=key)
+                              for key in _risk_factors(profile) if key in rules_data.get("risk_factors", {})]
     return result
+
+
+def _risk_factors(profile):
+    return ["smoking"] if profile.get("smoking") == "Курит" else []
+
+
+def _merge_profosmotr(items):
+    """Профосмотр входит в диспансеризацию: если диспансеризация нужна не позже профосмотра,
+    отдельной задачей профосмотр не показываем."""
+    prof = next((i for i in items if i["test"] == "profosmotr"), None)
+    disp = next((i for i in items if i["test"] == "dispanserization"), None)
+    if not prof or not disp or not disp["next_due"]:
+        return
+    if prof["next_due"] and disp["next_due"] > prof["next_due"]:
+        return
+    items.remove(prof)
+    disp["notes"].insert(0, "Включает профилактический осмотр: отдельно проходить его не нужно.")

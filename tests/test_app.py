@@ -30,7 +30,7 @@ class ApiScenarioTest(unittest.TestCase):
         code, plan = self.call("POST", "/api/profile", {"name": "Анна", "consent": True, "profile": {"birth_date": "1985-03-12", "sex": "female"}})
         self.assertTrue(plan["ready"])
         mammo = next(i for i in plan["items"] if i["test"] == "mammography")
-        self.assertEqual(mammo["status"], "soon")
+        self.assertEqual(mammo["status"], "no_data")
 
         pdf = base64.b64encode(b"%PDF-1.4 test").decode()
         code, plan = self.call("POST", "/api/history", {
@@ -45,7 +45,37 @@ class ApiScenarioTest(unittest.TestCase):
 
         code, plan = self.call("DELETE", "/api/history/" + record["id"])
         mammo = next(i for i in plan["items"] if i["test"] == "mammography")
-        self.assertEqual(mammo["status"], "soon")
+        self.assertEqual(mammo["status"], "no_data")
+
+    def test_dispanserization_with_included_tests(self):
+        self.call("POST", "/api/demo", {"id": "anna"})
+        code, plan = self.call("POST", "/api/history", {
+            "test": "dispanserization", "date": "2026-10-20",
+            "also": ["fluorography", "gyn_exam", "mammography", "unknown_test"]})
+        self.assertEqual(code, 200)
+        items = {i["test"]: i for i in plan["items"]}
+        for test in ("dispanserization", "fluorography", "gyn_exam", "mammography"):
+            self.assertEqual(items[test]["last_date"], "2026-10-20", test)
+        self.assertEqual(len(plan["history"]), 5 + 4)
+        self.assertIn("в составе", next(r for r in plan["history"] if r["test"] == "gyn_exam" and r["date"] == "2026-10-20")["result"])
+
+    def test_edit_record(self):
+        self.call("POST", "/api/demo", {"id": "anna"})
+        code, plan = self.call("GET", "/api/plan")
+        record = next(r for r in plan["history"] if r["test"] == "fluorography")
+        code, plan = self.call("PUT", "/api/history/" + record["id"], {"date": "2026-01-15", "result": "норма"})
+        self.assertEqual(code, 200)
+        fluoro = next(i for i in plan["items"] if i["test"] == "fluorography")
+        self.assertEqual(fluoro["next_due"], "2028-01-15")
+        edited = next(r for r in plan["history"] if r["id"] == record["id"])
+        self.assertEqual(edited["result"], "норма")
+        self.assertEqual(self.call("PUT", "/api/history/nope", {"date": "2026-01-15"})[0], 404)
+        self.assertEqual(self.call("PUT", "/api/history/" + record["id"], {"date": "вчера"})[0], 400)
+        self.assertEqual(self.call("PUT", "/api/history/" + record["id"], {"test": "x-ray-of-cat"})[0], 400)
+
+    def test_catalog_has_ct(self):
+        tests = {t["test"] for t in self.call("GET", "/api/tests")[1]}
+        self.assertTrue({"ct_chest", "ct_breast", "profosmotr"} <= tests)
 
     def test_data_survives_restart(self):
         self.call("POST", "/api/demo", {"id": "anna"})

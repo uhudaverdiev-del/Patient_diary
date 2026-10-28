@@ -31,7 +31,8 @@ def test_catalog(rules_data):
     for rule in rules_data["rules"]:
         seen.setdefault(rule["test"], {"test": rule["test"], "title": rule["title"], "who": []})
         seen[rule["test"]]["who"].append(describe_rule(rule))
-    seen.setdefault("profosmotr", {"test": "profosmotr", "title": "Профилактический медицинский осмотр", "who": []})
+    for extra in rules_data.get("extra_tests", []):
+        seen[extra["test"]] = {"test": extra["test"], "title": extra["title"], "who": [extra["who"]]}
     return list(seen.values())
 
 
@@ -52,6 +53,23 @@ class App:
         plan["reminders"] = reminders(plan)
         plan["consent"] = state.get("consent")
         return plan
+
+    def known_tests(self):
+        return {t["test"] for t in test_catalog(self.rules)}
+
+    def add_records(self, body):
+        """Отметка о прохождении. Для диспансеризации и профосмотра в also приходит список
+        входящих в них обследований: каждое сохраняется отдельной записью с той же датой."""
+        known = self.known_tests()
+        if body.get("test") and body["test"] not in known:
+            raise ValueError("Неизвестное обследование.")
+        also = [t for t in body.get("also") or [] if t in known and t != body["test"]]
+        self.storage.add_record(body)
+        for test in dict.fromkeys(also):
+            self.storage.add_record({"test": test, "date": body["date"], "result": f"в составе: {self.title(body['test'])}"})
+
+    def title(self, test):
+        return next((t["title"] for t in test_catalog(self.rules) if t["test"] == test), test)
 
     def report_page(self, today=None):
         titles = {t["test"]: t["title"] for t in test_catalog(self.rules)}
@@ -86,7 +104,10 @@ class App:
                 self.storage.save_profile(body.get("profile", {}), body.get("name"), consent=body.get("consent") is True)
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/history":
-                self.storage.add_record(body)
+                self.add_records(body)
+                return 200, self.plan(today)
+            if method == "PUT" and path.startswith("/api/history/"):
+                self.storage.update_record(path.rsplit("/", 1)[-1], body, self.known_tests())
                 return 200, self.plan(today)
             if method == "DELETE" and path.startswith("/api/history/"):
                 self.storage.delete_record(path.rsplit("/", 1)[-1])
@@ -179,6 +200,9 @@ def make_handler(app):
 
         def do_DELETE(self):
             self._route("DELETE")
+
+        def do_PUT(self):
+            self._route("PUT")
 
     return Handler
 

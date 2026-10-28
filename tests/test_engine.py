@@ -46,8 +46,15 @@ class AnnaTest(unittest.TestCase):
         self.assertEqual(item["next_due"], "2024-05-10")
         self.assertNotIn("dispanserization_18_39", self.items)
 
-    def test_profosmotr_counts_dispanserization(self):
-        self.assertEqual(self.items["profosmotr"]["last_date"], "2023-05-10")
+    def test_profosmotr_merged_into_dispanserization(self):
+        # После 40 лет диспансеризация ежегодная и включает профосмотр: одна задача, а не две.
+        self.assertNotIn("profosmotr", self.items)
+        self.assertIn("Включает профилактический осмотр", self.items["dispanserization_40"]["notes"][0])
+
+    def test_never_done_is_no_data_not_overdue(self):
+        for test_id in ("mammography", "fobt_40_64", "eye_pressure", "hepatitis_c"):
+            self.assertEqual(self.items[test_id]["status"], "no_data", test_id)
+        self.assertEqual(self.items["ecg"]["status"], "overdue")
 
     def test_female_screenings_present_male_absent(self):
         self.assertIn("mammography", self.items)
@@ -56,7 +63,7 @@ class AnnaTest(unittest.TestCase):
 
     def test_mammography_never_done_asks_for_date(self):
         item = self.items["mammography"]
-        self.assertEqual(item["status"], "soon")
+        self.assertEqual(item["status_label"], "нет данных")
         self.assertTrue(item["needs_date"])
 
     def test_every_item_has_source(self):
@@ -69,18 +76,75 @@ class AnnaTest(unittest.TestCase):
         self.assertEqual(items["fluorography"]["status"], "actual")
         self.assertEqual(items["fluorography"]["next_due"], "2028-10-24")
 
-    def test_dispanserization_marks_profosmotr_done(self):
+    def test_dispanserization_recalculates(self):
         items = by_id(plan_for("anna", [{"test": "dispanserization", "date": "2026-10-20"}]))
-        self.assertEqual(items["profosmotr"]["status"], "actual")
+        self.assertNotIn("profosmotr", items)
+        self.assertEqual(items["dispanserization_40"]["status"], "actual")
         self.assertEqual(items["dispanserization_40"]["next_due"], "2027-10-20")
+
+    def test_ct_counts_instead_of_fluorography_and_mammography(self):
+        items = by_id(plan_for("anna", [{"test": "ct_chest", "date": "2026-03-01"},
+                                        {"test": "ct_breast", "date": "2026-03-01"}]))
+        self.assertEqual(items["fluorography"]["next_due"], "2028-03-01")
+        # маммографию не делают, если КТ молочных желёз была в последние 12 месяцев
+        self.assertEqual(items["mammography"]["next_due"], "2027-03-01")
+        self.assertIn("КТ молочных желёз", items["mammography"]["notes"][-1])
+
+    def test_mammography_after_ct_keeps_own_interval(self):
+        items = by_id(plan_for("anna", [{"test": "ct_breast", "date": "2025-01-01"},
+                                        {"test": "mammography", "date": "2025-06-01"}]))
+        self.assertEqual(items["mammography"]["next_due"], "2027-06-01")
+
+
+class HepatitisCTest(unittest.TestCase):
+    """Анализ на гепатит C добавлен приказом № 378н с 30.08.2024: раньше его не могли сделать."""
+
+    def test_not_overdue_for_people_over_25_before_2024(self):
+        item = by_id(plan_for("anna"))["hepatitis_c"]
+        self.assertEqual(item["status"], "no_data")
+        self.assertIn("378н", item["notes"][0])
+
+    def test_done_resets_interval(self):
+        item = by_id(plan_for("anna", [{"test": "hepatitis_c", "date": "2025-02-01"}]))["hepatitis_c"]
+        self.assertEqual(item["status"], "actual")
+        self.assertEqual(item["next_due"], "2035-02-01")
 
 
 class AgeRulesTest(unittest.TestCase):
-    def test_psa_and_egd_soon_before_45(self):
+    def test_psa_and_egd_any_day_of_the_year_turning_45(self):
+        # Иван родился 20.11.1981: 45 исполняется в 2026, сдать можно в любой день года.
         items = by_id(plan_for("ivan"))
+        for test_id in ("psa", "egd"):
+            self.assertEqual(items[test_id]["next_due"], "2026-12-31")
+            self.assertEqual(items[test_id]["status"], "actual")  # до конца года больше 60 дней
+            self.assertTrue(items[test_id]["todo_this_year"])
+
+    def test_psa_becomes_soon_60_days_before_year_end(self):
+        demo = json.loads((DEMO / "ivan.json").read_text(encoding="utf-8"))
+        items = by_id(build_plan(demo["profile"], demo["history"], today="2026-11-15"))
         self.assertEqual(items["psa"]["status"], "soon")
-        self.assertEqual(items["psa"]["next_due"], "2026-11-20")
-        self.assertEqual(items["egd"]["next_due"], "2026-11-20")
+
+    def test_psa_done_this_year(self):
+        items = by_id(plan_for("ivan", [{"test": "psa", "date": "2026-03-01"}]))
+        self.assertEqual(items["psa"]["next_due"], "2031-01-01")
+        self.assertFalse(items["psa"]["todo_this_year"])
+
+    def test_progress_counts_psa_only_when_done(self):
+        self.assertEqual(plan_for("ivan")["summary"]["progress_percent"], 75)
+        done = plan_for("ivan", [{"test": "psa", "date": "2026-03-01"}, {"test": "egd", "date": "2026-03-01"}])
+        self.assertEqual(done["summary"]["progress_percent"], 100)
+
+    def test_calendar_year_age_band(self):
+        # 40 исполнится в декабре 2026: ежегодная диспансеризация и маммография уже с 1 января 2026.
+        plan = build_plan({"birth_date": "1986-12-20", "sex": "female"}, today=TODAY)
+        items = by_id(plan)
+        self.assertEqual(plan["age"], 39)
+        self.assertIn("dispanserization_40", items)
+        self.assertIn("mammography", items)
+
+    def test_smoking_risk_factor(self):
+        self.assertEqual([r["id"] for r in plan_for("ivan")["risk_factors"]], ["smoking"])
+        self.assertEqual(plan_for("anna")["risk_factors"], [])
 
     def test_no_psa_after_64(self):
         items = by_id(plan_for("petr"))

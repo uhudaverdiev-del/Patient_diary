@@ -77,6 +77,23 @@ class Storage:
         self.save(state)
         return entry
 
+    def update_record(self, record_id, changes, known_tests=None):
+        """Исправить обследование, дату или результат. Файл остаётся прежним."""
+        state = self.load()
+        record = next((r for r in state["history"] if r.get("id") == record_id), None)
+        if record is None:
+            raise KeyError(record_id)
+        test = changes.get("test", record["test"])
+        record_date = changes.get("date", record["date"])
+        if not test or not record_date:
+            raise ValueError("Укажите обследование и дату прохождения.")
+        if known_tests is not None and test not in known_tests:
+            raise ValueError("Неизвестное обследование.")
+        date.fromisoformat(record_date)
+        record.update(test=str(test), date=record_date, result=str(changes.get("result", record.get("result")) or ""))
+        self.save(state)
+        return record
+
     def delete_record(self, record_id):
         state = self.load()
         kept = [r for r in state["history"] if r.get("id") != record_id]
