@@ -79,6 +79,16 @@
   .md p, .md li { max-width: 68ch; }
   .md table { margin: 8px 0; max-width: 480px; }
   ol.src li { margin: 4px 0; font-size: 14px; }
+  .chat #chatLog { display: grid; gap: 10px; margin-bottom: 12px; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 15px; }
+  .msg.user { justify-self: end; background: var(--accent); color: #fff; }
+  .msg.bot { justify-self: start; background: var(--bg); border: 1px solid var(--line); }
+  .msg-src { margin-top: 8px; font-size: 13px; }
+  .msg-mode { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .quick .btn, [data-ask].btn { white-space: normal; text-align: left; font-weight: 500; }
+  .ask { display: flex; gap: 8px; }
+  @media (max-width: 640px) { .msg { max-width: 100%; } }
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) {
     .item { grid-template-columns: 6px 1fr; }
@@ -96,6 +106,7 @@
   </div>
   <nav id="tabs">
     <button data-tab="home" class="active">Главная</button>
+    <button data-tab="assistant">Ассистент</button>
     <button data-tab="plan">Мой план</button>
     <button data-tab="calendar">Календарь</button>
     <button data-tab="history">Пройдено</button>
@@ -127,7 +138,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { plan: null, tests: [], demos: [], tab: "home" };
+const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false };
+const QUICK = ["Что мне нужно пройти в этом году?", "Какие обследования просрочены?", "Зачем нужна маммография?", "Как получить выходной на работе для диспансеризации?"];
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("ru-RU") : "—";
@@ -236,6 +248,10 @@ const VIEWS = {
         <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
         <div class="tile progress"><b>${s.progress_percent}%</b>план выполнен<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
       </div>
+      <div class="card" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <b style="margin-right:8px">Спросите ассистента:</b>
+        ${QUICK.slice(0, 3).map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}
+      </div>
       <h2>Что сделать в первую очередь</h2>
       ${next.length ? `<div class="grid">${next.map((i) => itemHtml(i, true)).join("")}</div>`
         : `<div class="card">Всё пройдено вовремя. Следующее обследование: ${esc(plan.items[0]?.title || "")} ${fmt(plan.items[0]?.next_due)}.</div>`}
@@ -311,6 +327,25 @@ const VIEWS = {
       </form>`;
   },
 
+  assistant() {
+    const msgs = S.chat.map((m) => m.role === "user"
+      ? `<div class="msg user">${esc(m.text)}</div>`
+      : `<div class="msg bot">${esc(m.answer).replace(/\n/g, "<br>")}
+          ${m.sources && m.sources.length ? `<div class="msg-src">Источники: ${m.sources.map((x, i) => (m.numbered ? `[${i + 1}] ` : "") + (x.wiki
+              ? `<a href="#" data-article="${esc(x.wiki)}">${esc(x.title)}</a>`
+              : x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title))).join(" · ")}</div>` : ""}
+          <div class="msg-mode">${m.mode === "yandexgpt" ? "Ответ YandexGPT, проверен по источникам" : "Локальный режим: ответ собран из вашего плана и Wiki"}${m.note ? " · " + esc(m.note) : ""}</div>
+        </div>`).join("");
+    return `<h1>Ассистент</h1>
+      <div class="muted">Отвечает по вашему плану и статьям Wiki, всегда со ссылками на источники. Не ставит диагнозы и не назначает лечение.
+        Режим: <b>${S.llm ? "YandexGPT + проверка источников" : "локальный (без интернета)"}</b></div>
+      <div class="card chat" style="margin-top:16px">
+        <div id="chatLog">${msgs || `<p class="muted">Спросите, например:</p>`}</div>
+        <div class="quick">${QUICK.map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>
+        <form id="askForm" class="ask"><input id="askInput" placeholder="Ваш вопрос о профилактике, ОМС или вашем плане" autocomplete="off"><button class="btn" type="submit">Спросить</button></form>
+      </div>`;
+  },
+
   wiki() {
     if (S.article) {
       const a = S.article;
@@ -365,8 +400,9 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist]");
+  const t = e.target.closest("[data-tab],[data-mark],[data-del],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask]");
   if (!t) return;
+  if (t.dataset.ask) return ask(t.dataset.ask);
   if (t.dataset.article) { e.preventDefault(); return openArticle(t.dataset.article); }
   if (t.dataset.wikilist) { e.preventDefault(); S.article = null; return go("wiki"); }
   if (t.dataset.tab) { if (t.dataset.tab === "wiki") S.article = null; return go(t.dataset.tab); }
@@ -378,7 +414,25 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+async function ask(question) {
+  question = question.trim();
+  if (!question) return;
+  S.chat.push({ role: "user", text: question });
+  S.chat.push({ role: "bot", answer: "Думаю…" });
+  go("assistant");
+  try {
+    const r = await api("POST", "/api/ask", { question });
+    S.chat[S.chat.length - 1] = Object.assign({ role: "bot" }, r);
+  } catch (err) {
+    S.chat[S.chat.length - 1] = { role: "bot", answer: "Не получилось ответить: " + err.message };
+  }
+  render();
+  const log = $("#chatLog"); if (log) log.lastElementChild.scrollIntoView({ block: "nearest" });
+  const input = $("#askInput"); if (input) input.focus();
+}
+
 document.addEventListener("submit", async (e) => {
+  if (e.target.id === "askForm") { e.preventDefault(); return ask($("#askInput").value); }
   if (e.target.id !== "profileForm") return;
   e.preventDefault();
   const conditions = [...e.target.querySelectorAll(".checks input:checked")].map((i) => i.value);
@@ -418,11 +472,13 @@ $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
 $("#demo").onchange = async () => {
   if (!$("#demo").value) return;
-  S.plan = await api("POST", "/api/demo", { id: $("#demo").value }); go("home"); toast("Загружен демо-пациент");
+  S.plan = await api("POST", "/api/demo", { id: $("#demo").value }); S.chat = []; go("home"); toast("Загружен демо-пациент");
 };
 
 (async function init() {
-  [S.tests, S.demos, S.plan] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList("")]);
+  let info;
+  [S.tests, S.demos, S.plan, , info] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant")]);
+  S.llm = info.llm_enabled;
   $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");
   render();
 })();

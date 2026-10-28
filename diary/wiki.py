@@ -38,15 +38,15 @@ def load_wiki(wiki_dir=WIKI_DIR):
     return articles
 
 
-def search(articles, query):
-    """Простой поиск по словам: сначала совпадения в заголовке, затем в тексте."""
+def search(articles, query, min_score=1):
+    """Простой поиск по словам: совпадение в заголовке или кратком описании весит 3, в тексте — 1."""
     words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 2]
     scored = []
     for a in articles.values():
         title = (a["title"] + " " + a["summary"]).lower()
         body = a["body"].lower()
         score = sum(3 * (w[:5] in title) + (w[:5] in body) for w in words)
-        if score:
+        if score >= min_score:
             scored.append((score, a["slug"]))
     scored.sort(key=lambda x: (-x[0], x[1]))
     return [articles[slug] for _, slug in scored]
