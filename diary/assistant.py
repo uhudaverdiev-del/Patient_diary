@@ -17,6 +17,7 @@ import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 
+from diary.privacy import redact
 from diary.wiki import search
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -255,8 +256,10 @@ class Assistant:
         fallback = local_answer(question, plan, self.wiki)
         if not self.llm_enabled or not plan.get("ready"):
             return dict(fallback, mode="local")
-        context, sources = build_context(question, plan, self.wiki)
-        user = f"Источники:\n{context}\n\nВопрос пациента: {question}"
+        # телефоны, e-mail и номера документов не уходят в облако и не пишутся в журнал
+        safe_question = redact(question)
+        context, sources = build_context(safe_question, plan, self.wiki)
+        user = f"Источники:\n{context}\n\nВопрос пациента: {safe_question}"
         try:
             text = self.llm(SYSTEM_PROMPT, user).strip()
         except Exception as e:  # сеть, ключ, квота — показываем локальный ответ
