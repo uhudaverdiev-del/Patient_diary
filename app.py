@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 from diary.assistant import Assistant
 from diary.engine import build_plan, describe_rule, load_rules
 from diary.reminders import reminders, to_ics
+from diary.report import render_report
 from diary.storage import Storage, list_demos
 from diary.wiki import load_wiki, search
 
@@ -47,6 +48,10 @@ class App:
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
         plan["reminders"] = reminders(plan)
         return plan
+
+    def report_page(self, today=None):
+        titles = {t["test"]: t["title"] for t in test_catalog(self.rules)}
+        return render_report(self.plan(today), titles).encode("utf-8")
 
     def calendar_file(self, today=None):
         return to_ics(self.plan(today)).encode("utf-8")
@@ -119,6 +124,9 @@ def make_handler(app):
                         return self._send(400, {"error": "Неверный формат запроса."})
                 code, payload = app.handle(method, url.path, parse_qs(url.query), body)
                 return self._send(code, payload)
+            if method == "GET" and url.path == "/report":
+                today = (parse_qs(url.query).get("today") or [None])[0]
+                return self._send(200, app.report_page(today), "text/html; charset=utf-8")
             if method == "GET" and url.path == "/calendar.ics":
                 today = (parse_qs(url.query).get("today") or [None])[0]
                 return self._send(200, app.calendar_file(today), "text/calendar; charset=utf-8",
