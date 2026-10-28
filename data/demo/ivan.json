@@ -32,5 +32,39 @@
       "test": "fobt",
       "date": "2026-02-01"
     }
+  ],
+  "metrics": [
+    {
+      "kind": "pressure",
+      "date": "2026-02-01",
+      "value": 132,
+      "value2": 84
+    },
+    {
+      "kind": "pressure",
+      "date": "2026-09-20",
+      "value": 128,
+      "value2": 80
+    },
+    {
+      "kind": "weight",
+      "date": "2026-02-01",
+      "value": 92
+    },
+    {
+      "kind": "weight",
+      "date": "2026-09-20",
+      "value": 89
+    },
+    {
+      "kind": "cholesterol",
+      "date": "2026-02-01",
+      "value": 4.8
+    },
+    {
+      "kind": "glucose",
+      "date": "2026-02-01",
+      "value": 5.4
+    }
   ]
 }

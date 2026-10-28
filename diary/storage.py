@@ -12,6 +12,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
+from diary.metrics import clean_metric
 from diary.privacy import consent_record, detect_file_type
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -94,6 +95,25 @@ class Storage:
         self.save(state)
         return record
 
+    def add_metric(self, record, today=None):
+        """Показатель здоровья: давление, вес, холестерин или сахар."""
+        state = self.load()
+        if not state.get("consent"):
+            raise ValueError(NO_CONSENT)
+        entry = dict(clean_metric(record, today), id=uuid.uuid4().hex[:12])
+        state.setdefault("metrics", []).append(entry)
+        self.save(state)
+        return entry
+
+    def delete_metric(self, metric_id):
+        state = self.load()
+        kept = [m for m in state.get("metrics", []) if m.get("id") != metric_id]
+        if len(kept) == len(state.get("metrics", [])):
+            raise KeyError(metric_id)
+        state["metrics"] = kept
+        self.save(state)
+        return state
+
     def delete_record(self, record_id):
         state = self.load()
         kept = [r for r in state["history"] if r.get("id") != record_id]
@@ -118,7 +138,7 @@ class Storage:
             shutil.rmtree(self.files_dir)
         log = self.user_dir / "llm_log.jsonl"
         log.unlink(missing_ok=True)
-        state = {"name": "", "profile": {}, "history": [], "consent": None}
+        state = {"name": "", "profile": {}, "history": [], "metrics": [], "consent": None}
         self.save(state)
         return state
 
@@ -132,9 +152,10 @@ class Storage:
         if self.files_dir.exists():
             shutil.rmtree(self.files_dir)
         history = [dict(r, id=uuid.uuid4().hex[:12]) for r in demo.get("history", [])]
+        metrics = [dict(m, id=uuid.uuid4().hex[:12]) for m in demo.get("metrics", [])]
         # демо-пациенты вымышленные: согласие не требуется, но отмечаем, что это демо
         state = {"name": demo.get("name", demo_name), "profile": demo["profile"], "history": history,
-                 "consent": {"demo": True}}
+                 "metrics": metrics, "consent": {"demo": True}}
         self.save(state)
         return state
 

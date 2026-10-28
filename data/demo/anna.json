@@ -28,5 +28,56 @@
       "test": "ecg",
       "date": "2023-05-10"
     }
+  ],
+  "metrics": [
+    {
+      "kind": "pressure",
+      "date": "2023-05-10",
+      "value": 128,
+      "value2": 82
+    },
+    {
+      "kind": "pressure",
+      "date": "2025-03-02",
+      "value": 134,
+      "value2": 86
+    },
+    {
+      "kind": "pressure",
+      "date": "2026-06-14",
+      "value": 138,
+      "value2": 88
+    },
+    {
+      "kind": "pressure",
+      "date": "2026-10-12",
+      "value": 146,
+      "value2": 92
+    },
+    {
+      "kind": "weight",
+      "date": "2023-05-10",
+      "value": 68
+    },
+    {
+      "kind": "weight",
+      "date": "2025-03-02",
+      "value": 71
+    },
+    {
+      "kind": "weight",
+      "date": "2026-10-12",
+      "value": 73.5
+    },
+    {
+      "kind": "cholesterol",
+      "date": "2023-05-10",
+      "value": 5.6
+    },
+    {
+      "kind": "glucose",
+      "date": "2023-05-10",
+      "value": 5.2
+    }
   ]
 }

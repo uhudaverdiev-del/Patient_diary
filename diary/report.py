@@ -47,6 +47,10 @@ def doctor_questions(plan):
     for cond in profile.get("conditions") or []:
         if cond in CONDITIONS:
             questions.append(f"Прошу учесть: {CONDITIONS[cond]}.")
+    for m in (plan.get("metrics") or {}).get("items", []):
+        if m["last"] and m["last"]["high"]:
+            questions.append(f"{m['title']} у меня {m['last']['text']} {m['unit']} (измерено {_fmt(m['last']['date'])}): "
+                             "что с этим делать?")
     questions.append("Если что-то из анализов окажется не в норме, положен ли мне второй этап диспансеризации?")
     return questions
 
@@ -105,6 +109,7 @@ def render_report(plan, test_titles):
 {_e(work_day_note(plan['age']))}</div>
 <h2>О чём сказать врачу</h2>
 <ol>{''.join(f'<li>{_e(q)}</li>' for q in doctor_questions(plan))}</ol>
+{metrics_html(plan)}
 {table('Просрочено', overdue, 'overdue')}
 {table('Скоро необходимо пройти', soon, 'soon')}
 {table('Нет отметки о прохождении', no_data, 'no_data')}
@@ -115,6 +120,20 @@ def render_report(plan, test_titles):
 <p class="foot">Памятка составлена сервисом «Дневник здоровья» по возрасту, полу и отметкам пациента.
 Это не медицинское заключение: окончательный объём обследований определяет врач.</p>"""
     return _page(body)
+
+
+def metrics_html(plan):
+    measured = [m for m in (plan.get("metrics") or {}).get("items", []) if m["last"]]
+    if not measured:
+        return ""
+    high = ' <span class="high">выше нормы</span>'
+    rows = "".join(
+        f"<tr><td>{_e(m['title'])}</td><td><b>{_e(m['last']['text'])}</b> {_e(m['unit'])}"
+        f"{high if m['last']['high'] else ''}</td>"
+        f"<td>{_fmt(m['last']['date'])}</td><td><small>{_e(m.get('change') or '')}</small></td></tr>"
+        for m in measured)
+    return (f"<h2>Мои показатели</h2><table><thead><tr><th>Показатель</th><th>Последнее значение</th>"
+            f"<th>Дата</th><th>Изменение</th></tr></thead><tbody>{rows}</tbody></table>")
 
 
 def _page(body):
@@ -132,6 +151,7 @@ def _page(body):
   th, td {{ text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #e1e6eb; }}
   th {{ font-size: 12px; color: #5d6b78; font-weight: 600; }}
   small {{ color: #5d6b78; }}
+  .high {{ color: #c62828; font-weight: 600; font-size: 12px; }}
   ol li {{ margin: 4px 0; }}
   .foot {{ margin-top: 24px; font-size: 12px; color: #5d6b78; }}
   .bar {{ display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; color: #5d6b78; font-size: 13px; }}

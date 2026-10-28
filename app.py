@@ -15,7 +15,8 @@ from urllib.parse import parse_qs, urlparse
 
 from diary.assistant import Assistant
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
-from diary.engine import build_plan, describe_rule, load_rules
+from diary.engine import build_plan, describe_rule, load_rules, parse_date
+from diary.metrics import summarize
 from diary.reminders import reminders, to_ics
 from diary.report import render_report
 from diary.storage import Storage, list_demos
@@ -52,6 +53,7 @@ class App:
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
         plan["reminders"] = reminders(plan)
         plan["consent"] = state.get("consent")
+        plan["metrics"] = summarize(state.get("metrics", []))
         return plan
 
     def known_tests(self):
@@ -111,6 +113,12 @@ class App:
                 return 200, self.plan(today)
             if method == "DELETE" and path.startswith("/api/history/"):
                 self.storage.delete_record(path.rsplit("/", 1)[-1])
+                return 200, self.plan(today)
+            if method == "POST" and path == "/api/metrics":
+                self.storage.add_metric(body, parse_date(today or self.today))
+                return 200, self.plan(today)
+            if method == "DELETE" and path.startswith("/api/metrics/"):
+                self.storage.delete_metric(path.rsplit("/", 1)[-1])
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/reset":
                 self.storage.reset()
