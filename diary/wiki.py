@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 WIKI_DIR = Path(__file__).resolve().parent.parent / "data" / "wiki"
-CHECKED = "2026-10-24"
+CHECKED = "2026-10-24"  # если в статье нет своей даты проверки (поле checked)
 
 
 def _parse(path, sources):
@@ -25,7 +25,7 @@ def _parse(path, sources):
         "summary": meta.get("summary", ""),
         "body": match.group(2).strip(),
         "sources": [dict(sources[r], id=r) for r in refs],
-        "checked": CHECKED,
+        "checked": meta.get("checked", CHECKED),
     }
 
 
@@ -43,9 +43,10 @@ def search(articles, query, min_score=1):
     words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 2]
     scored = []
     for a in articles.values():
-        title = (a["title"] + " " + a["summary"]).lower()
-        body = a["body"].lower()
-        score = sum(3 * (w[:5] in title) + (w[:5] in body) for w in words)
+        # сравниваем с началами слов: иначе «Казани» находится внутри слова «показаниям»
+        title = " " + " ".join(re.findall(r"\w+", (a["title"] + " " + a["summary"]).lower()))
+        body = " " + " ".join(re.findall(r"\w+", a["body"].lower()))
+        score = sum(3 * ((" " + w[:5]) in title) + ((" " + w[:5]) in body) for w in words)
         if score >= min_score:
             scored.append((score, a["slug"]))
     scored.sort(key=lambda x: (-x[0], x[1]))
