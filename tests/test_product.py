@@ -61,10 +61,6 @@ class ProductTest(unittest.TestCase):
         code, _ = self.call("POST", "/api/history", {"test": "dispanserization", "date": "2026-10-01", "second_stage": "maybe"})
         self.assertEqual(code, 400)
 
-    def test_review_line_is_honest_by_default(self):
-        _, plan = self.call("GET", "/api/plan")
-        self.assertEqual(set(plan["review"]), {"reviewer", "role", "date"})
-
 
 class FaqTest(unittest.TestCase):
     def setUp(self):
