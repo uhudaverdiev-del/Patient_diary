@@ -30,19 +30,60 @@ SYSTEM_PROMPT = (
 )
 
 
-def load_env(path=ROOT / ".env"):
+ENV_NAMES = (".env", ".env.txt", "env.txt", "env")  # Блокнот любит дописывать .txt
+
+
+def find_env_file(root=ROOT):
+    for name in ENV_NAMES:
+        path = Path(root) / name
+        if path.is_file():
+            return path
+    return None
+
+
+def _read_text(path):
+    """Текст файла в любой кодировке, которую может выбрать Блокнот."""
+    raw = path.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16")
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode("cp1251")
+
+
+def load_env(path=None):
     """Читает .env (KEY=VALUE) без сторонних библиотек. Переменные окружения важнее."""
+    path = find_env_file() if path is None else Path(path)
     values = {}
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
+    if path and path.is_file():
+        for line in _read_text(path).splitlines():
             line = line.strip()
+            if line.startswith("export "):
+                line = line[len("export "):]
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
-                values[key.strip()] = value.strip().strip('"').strip("'")
+                values[key.strip().upper()] = value.strip().strip('"').strip("'").strip()
     for key in ("YANDEX_API_KEY", "YANDEX_FOLDER_ID", "YANDEX_MODEL"):
         if os.environ.get(key):
             values[key] = os.environ[key]
     return values
+
+
+def env_report(env, path, root=ROOT):
+    """Понятное объяснение, нашёл ли сервис ключ и где искал (для консоли и вкладки «Ассистент»)."""
+    missing = [k for k in ("YANDEX_API_KEY", "YANDEX_FOLDER_ID") if not env.get(k)]
+    if not missing:
+        where = f"из файла {path.name}" if path else "из переменных окружения"
+        return [f"YandexGPT: ключ найден ({where}), ассистент работает через нейросеть."]
+    lines = ["YandexGPT: выключен, ассистент работает в локальном режиме."]
+    if path is None:
+        lines.append(f"  Не найден файл .env в папке: {Path(root).resolve()}")
+        lines.append("  Создайте файл .env в этой папке, рядом с app.py.")
+    else:
+        lines.append(f"  Файл {path.name} найден, но в нём нет строк: {', '.join(missing)}")
+        lines.append("  Формат: YANDEX_API_KEY=ваш_ключ и YANDEX_FOLDER_ID=id_каталога, каждое с новой строки.")
+    return lines
 
 
 def _fmt(iso):
@@ -194,7 +235,8 @@ def citations_ok(text, n_sources):
 class Assistant:
     def __init__(self, wiki, env=None, llm=None, log_path=None):
         self.wiki = wiki
-        self.env = load_env() if env is None else env
+        self.env_path = find_env_file() if env is None else None
+        self.env = load_env(self.env_path or ROOT / ".env") if env is None else env
         # llm(system, user) -> str; по умолчанию YandexGPT, в тестах подменяется
         self.llm = llm or (lambda s, u: ask_yandex(s, u, self.env))
         self.log_path = Path(log_path or ROOT / "data" / "user" / "llm_log.jsonl")
@@ -202,6 +244,9 @@ class Assistant:
     @property
     def llm_enabled(self):
         return bool(self.env.get("YANDEX_API_KEY") and self.env.get("YANDEX_FOLDER_ID"))
+
+    def status(self):
+        return env_report(self.env, self.env_path)
 
     def ask(self, question, plan):
         question = (question or "").strip()[:500]

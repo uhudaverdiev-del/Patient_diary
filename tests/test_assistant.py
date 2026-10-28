@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from diary.assistant import Assistant, build_context, citations_ok, local_answer
+from diary.assistant import Assistant, build_context, citations_ok, env_report, find_env_file, load_env, local_answer
 from diary.engine import build_plan
 from diary.wiki import load_wiki
 
@@ -100,6 +100,41 @@ class LlmModeTest(unittest.TestCase):
         self.assertTrue(citations_ok("а [1] б [2]", 2))
         self.assertFalse(citations_ok("а [3]", 2))
         self.assertFalse(citations_ok("без ссылок", 2))
+
+
+class EnvFileTest(unittest.TestCase):
+    """Типичные ошибки при создании .env в Блокноте не должны ломать ключ."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+
+    def write(self, name, data):
+        (self.dir / name).write_bytes(data)
+        return find_env_file(self.dir)
+
+    def assert_keys(self, path):
+        env = load_env(path)
+        self.assertEqual(env.get("YANDEX_API_KEY"), "AQV-1")
+        self.assertEqual(env.get("YANDEX_FOLDER_ID"), "b1g2")
+
+    def test_plain(self):
+        self.assert_keys(self.write(".env", b"YANDEX_API_KEY=AQV-1\nYANDEX_FOLDER_ID=b1g2\n"))
+
+    def test_txt_extension_bom_and_spaces(self):
+        text = "\ufeffYANDEX_API_KEY = AQV-1 \r\nyandex_folder_id=\"b1g2\"\r\n"
+        self.assert_keys(self.write(".env.txt", text.encode("utf-8")))
+
+    def test_utf16(self):
+        self.assert_keys(self.write(".env", "YANDEX_API_KEY=AQV-1\nYANDEX_FOLDER_ID=b1g2".encode("utf-16")))
+
+    def test_report_missing_file(self):
+        lines = env_report({}, None, self.dir)
+        self.assertIn("Не найден файл .env", lines[1])
+
+    def test_report_missing_line(self):
+        path = self.write(".env", b"YANDEX_API_KEY=AQV-1\n")
+        lines = env_report(load_env(path), path, self.dir)
+        self.assertIn("YANDEX_FOLDER_ID", lines[1])
 
 
 if __name__ == "__main__":
