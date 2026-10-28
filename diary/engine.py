@@ -329,13 +329,14 @@ def _plan_once_rule(rule, year_age, today, history):
     """Прививка, которую делают один раз (курсом), если человек не болел и не прививался.
 
     Без отметки статус «нет данных» с пояснением, когда она нужна: решает врач.
+    conditional: прививка по показаниям, в напоминания, календарь и «солнце» не входит.
     """
     lo, hi = rule["age_min"], rule.get("age_max")
     if year_age < lo or (hi is not None and year_age > hi):
         return None
     last = _last_done(history, [rule["test"]], today)
     if last is not None:
-        return {"last_date": last, "next_due": None, "status": "actual",
+        return {"last_date": last, "next_due": None, "status": "actual", "conditional": True,
                 "notes": ["Отмечено, что прививка сделана: повторять не нужно."]}
     return {"last_date": None, "next_due": None, "status": "no_data", "conditional": True, "needs_date": True,
             "notes": [rule["condition"], "Сведения о прививках есть в медкарте: спросите терапевта."]}
@@ -354,7 +355,7 @@ def _make_item(rule, planned, sources, kind):
         "next_due": planned["next_due"].isoformat() if planned["next_due"] else None,
         "status": planned["status"],
         "status_label": ("пройти в этом году" if planned.get("todo_this_year") and planned["status"] == "actual"
-                         else "если не прививались" if planned.get("conditional")
+                         else "если не прививались" if planned.get("conditional") and planned["status"] != "actual"
                          else STATUS_LABELS[planned["status"]]),
         "needs_date": planned.get("needs_date", False),
         "upcoming": planned.get("upcoming", False),

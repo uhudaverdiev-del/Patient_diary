@@ -17,6 +17,7 @@ from diary.assistant import Assistant
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules, parse_date
 from diary.metrics import summarize
+from diary.motivation import sun_rays
 from diary.reminders import reminders, to_ics
 from diary.report import render_report
 from diary.storage import Storage, list_demos
@@ -54,6 +55,7 @@ class App:
         plan["reminders"] = reminders(plan)
         plan["consent"] = state.get("consent")
         plan["metrics"] = summarize(state.get("metrics", []))
+        plan["sun"] = sun_rays(plan)
         return plan
 
     def known_tests(self):

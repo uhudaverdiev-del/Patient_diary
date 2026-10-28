@@ -32,9 +32,6 @@
   .tile.soon { background: var(--soon-soft); color: var(--soon); }
   .tile.actual { background: var(--ok-soft); color: var(--ok); }
   .tile.no_data { background: var(--nd-soft); color: var(--nd); }
-  .tile.progress { background: var(--accent-soft); color: var(--accent); }
-  .meter { height: 8px; background: rgba(0,0,0,.08); border-radius: 4px; margin-top: 6px; overflow: hidden; }
-  .meter i { display: block; height: 100%; background: currentColor; }
   .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
   .pill.overdue { background: var(--bad-soft); color: var(--bad); }
   .pill.soon { background: var(--soon-soft); color: var(--soon); }
@@ -132,6 +129,24 @@
   .linkbtn { background: none; border: 0; color: var(--bad); cursor: pointer; font: inherit; font-size: 13px; }
   .metric-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
   .metric-form label { font-size: 13px; }
+  .home-top { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 12px; margin-top: 16px; align-items: start; }
+  .home-top .tiles { margin-top: 0; grid-template-columns: repeat(2, 1fr); }
+  .sun { text-align: center; }
+  .sun svg { width: 210px; height: 210px; display: block; margin: 0 auto; overflow: visible; }
+  .sun .ray line { stroke: #d5dbe1; stroke-linecap: round; transition: stroke .3s; }
+  .sun .ray.lit line { stroke: #f5a623; }
+  .sun .ray.off { cursor: pointer; }
+  .sun .ray.off:hover line { stroke: #f8c66d; }
+  .sun .ray .hit { stroke: transparent; }
+  .sun .core { fill: #ffe39a; }
+  .sun .core-num { font-size: 26px; font-weight: 700; fill: #8a5a00; }
+  .sun .core-sub { font-size: 12px; fill: #8a5a00; }
+  .sun.done svg { filter: drop-shadow(0 0 14px rgba(245,166,35,.75)); animation: sunglow 2.4s ease-in-out infinite alternate; }
+  @keyframes sunglow { to { filter: drop-shadow(0 0 4px rgba(245,166,35,.4)); } }
+  @media (prefers-reduced-motion: reduce) { .sun.done svg { animation: none; } }
+  .sun ul { text-align: left; margin: 8px 0 0; padding-left: 18px; font-size: 14px; }
+  .sun li { margin: 3px 0; }
+  @media (max-width: 640px) { .home-top { grid-template-columns: 1fr; } }
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 30px; font-size: 13px; color: var(--muted); }
   @media (max-width: 640px) {
     .item { grid-template-columns: 6px 1fr; }
@@ -349,6 +364,34 @@ function reportButton() {
   return `<a class="btn ghost" href="/report${todayParam("/report")}" target="_blank" rel="noopener">Памятка для терапевта</a>`;
 }
 
+function rayAttrs(r) {
+  return r.lit ? "" : r.mark ? `data-mark="${esc(r.mark)}"` : `data-goto="${esc(r.goto)}"`;
+}
+
+function sunHtml(sun) {
+  // Каждый луч — обследование, обязательная прививка или шаг профиля. Серый луч кликабелен: ведёт туда, где его зажечь.
+  const n = sun.total, C = 105, R1 = 58, R2 = 100;
+  const width = Math.max(4, Math.min(14, 240 / n));
+  const rays = sun.rays.map((r, i) => {
+    const a = (-90 + i * 360 / n) * Math.PI / 180;
+    const xy = (rad) => `x1="${(C + R1 * Math.cos(a)).toFixed(1)}" y1="${(C + R1 * Math.sin(a)).toFixed(1)}" x2="${(C + rad * Math.cos(a)).toFixed(1)}" y2="${(C + rad * Math.sin(a)).toFixed(1)}"`;
+    return `<g class="ray ${r.lit ? "lit" : "off"}" ${rayAttrs(r)}><title>${esc(r.title)}${r.lit ? ": сделано" : ": нажмите, чтобы отметить"}</title>
+      <line class="hit" ${xy(R2)} stroke-width="${width + 10}"/><line ${xy(R2)} stroke-width="${width}"/></g>`;
+  }).join("");
+  const unlit = sun.rays.filter((r) => !r.lit);
+  const list = unlit.slice(0, 4).map((r) => `<li><a href="#" ${rayAttrs(r)}>${esc(r.title)}</a></li>`).join("");
+  return `<div class="card sun ${sun.all_done ? "done" : ""}">
+    <svg viewBox="0 0 210 210" role="img" aria-label="Солнце здоровья: горит ${sun.lit} лучей из ${n}">
+      ${rays}<circle class="core" cx="${C}" cy="${C}" r="48"/>
+      <text class="core-num" x="${C}" y="${C + 4}" text-anchor="middle">${sun.all_done ? "☀" : `${sun.lit} из ${n}`}</text>
+      <text class="core-sub" x="${C}" y="${C + 22}" text-anchor="middle">${sun.all_done ? "Всё сделано!" : "лучей горит"}</text>
+    </svg>
+    ${sun.all_done ? `<p style="margin:8px 0 0"><b>Всё сделано!</b> Все положенные сейчас обследования и прививки пройдены.</p>`
+      : `<div style="text-align:left;margin-top:8px;font-size:14px"><b>Чтобы зажечь лучи:</b></div><ul>${list}</ul>
+        ${unlit.length > 4 ? `<div class="muted" style="font-size:13px;text-align:left">И ещё ${unlit.length - 4}: нажмите на серый луч или откройте «Мой план».</div>` : ""}`}
+  </div>`;
+}
+
 function remindersHtml(plan) {
   const list = plan.reminders || [];
   const shown = list.slice(0, 5);
@@ -413,12 +456,14 @@ const VIEWS = {
     return `<h1>${name}</h1>
       <div class="muted">Возраст: ${plan.age}. Персональный план: ${s.total} мероприятий.</div>
       ${problemsHtml(plan)}
-      <div class="grid tiles">
-        <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
-        <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
-        <div class="tile no_data"><b>${s.counts.no_data}</b>нет данных</div>
-        <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
-        <div class="tile progress"><b>${s.progress_percent}%</b>пройдено ${s.done} из ${s.required}<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
+      <div class="home-top">
+        ${plan.sun ? sunHtml(plan.sun) : ""}
+        <div class="grid tiles">
+          <div class="tile overdue"><b>${s.counts.overdue}</b>просрочено</div>
+          <div class="tile soon"><b>${s.counts.soon}</b>скоро необходимо пройти</div>
+          <div class="tile no_data"><b>${s.counts.no_data}</b>нет данных</div>
+          <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
+        </div>
       </div>
       ${riskHtml(plan)}
       ${remindersHtml(plan)}

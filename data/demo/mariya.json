@@ -4,6 +4,7 @@
   "profile": {
     "birth_date": "2001-07-01",
     "sex": "female",
+    "smoking": "Не курит",
     "conditions": []
   },
   "history": [
@@ -50,6 +51,19 @@
       "test": "vac_rubella",
       "date": "2007-09-01",
       "result": "две прививки в детстве"
+    }
+  ],
+  "metrics": [
+    {
+      "kind": "pressure",
+      "date": "2026-09-01",
+      "value": 112,
+      "value2": 72
+    },
+    {
+      "kind": "weight",
+      "date": "2026-09-01",
+      "value": 58
     }
   ]
 }
