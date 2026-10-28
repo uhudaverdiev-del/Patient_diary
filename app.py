@@ -18,7 +18,7 @@ from diary.assistant import Assistant
 from diary.preparation import prep_for
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules, parse_date
-from diary.letters import refusal_letter
+from diary.letters import dispute_letter, refusal_letter
 from diary.metrics import summarize
 from diary.motivation import sun_rays
 from diary.reminders import reminders, to_ics
@@ -28,6 +28,10 @@ from diary.wiki import load_wiki, search
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAX_BODY = 15 * 1024 * 1024
+
+
+def fmt_date(iso):
+    return date.fromisoformat(iso).strftime("%d.%m.%Y")
 
 
 def test_catalog(rules_data):
@@ -53,7 +57,17 @@ class App:
 
     def plan(self, today=None):
         state = self.storage.load()
-        plan = build_plan(state["profile"], state["history"], today=today or self.today, rules_data=self.rules)
+        disputes = sorted(state.get("disputes", []), key=lambda d: d["date"], reverse=True)
+        # Запись, которую пациент отметил как приписку, в расчёте сроков не участвует.
+        disputed = {(d["test"], d["date"]) for d in disputes}
+        counted = [r for r in state["history"] if (r["test"], r["date"]) not in disputed]
+        plan = build_plan(state["profile"], counted, today=today or self.today, rules_data=self.rules)
+        for item in plan["items"] + plan["vaccines"]:
+            for d in disputes:
+                if d["test"] == item["test"]:
+                    item["notes"].append(f"Вы отметили ошибочную запись в выписке ОМС от {fmt_date(d['date'])}: "
+                                         "в плане она не учитывается.")
+        plan["disputes"] = disputes
         plan["name"] = state.get("name", "")
         plan["profile"] = state["profile"]
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
@@ -83,6 +97,11 @@ class App:
     def letter(self, body, today=None):
         plan = self.plan(today)
         when_today = date.fromisoformat(plan["today"])
+        if body.get("kind") == "dispute":
+            found = next((d for d in plan["disputes"] if d["id"] == body.get("id")), None)
+            if found is None:
+                raise KeyError(body.get("id"))
+            return dispute_letter(self.title(found["test"]), found["date"], when_today)
         item = next((i for i in plan["items"] + plan["vaccines"] if i["test"] == body.get("test")), None)
         if item is None:
             raise ValueError("Этого обследования нет в вашем плане.")
@@ -141,6 +160,12 @@ class App:
             if method == "POST" and path == "/api/letter":
                 # Текст письма только возвращается: не сохраняется, не пишется в журнал, не уходит в нейросеть.
                 return 200, {"text": self.letter(body, today)}
+            if method == "POST" and path == "/api/disputes":
+                self.storage.add_dispute(body, self.known_tests(), date.fromisoformat(self.plan(today)["today"]))
+                return 200, self.plan(today)
+            if method == "DELETE" and path.startswith("/api/disputes/"):
+                self.storage.delete_dispute(path.rsplit("/", 1)[-1])
+                return 200, self.plan(today)
             if method == "POST" and path == "/api/demo":
                 self.storage.load_demo(body.get("id", ""))
                 return 200, self.plan(today)

@@ -225,6 +225,32 @@
     </div>
   </form>
 </dialog>
+<dialog id="disputeDialog">
+  <form class="card" id="disputeForm">
+    <h2 style="margin-top:0">Ошибочная запись в выписке ОМС</h2>
+    <div class="row"><label for="dTest">Какая услуга указана</label><select id="dTest" required></select></div>
+    <div class="row"><label for="dDate">Дата в выписке</label><input type="date" id="dDate" required></div>
+    <div class="row"><label for="dComment">Комментарий для себя</label><textarea id="dComment" rows="2" maxlength="500" placeholder="Например: в этот день была в отпуске"></textarea></div>
+    <div class="muted" style="font-size:13px;margin-bottom:12px">Запись хранится только на этом компьютере. В плане она не будет учитываться,
+      а заявление в страховую можно будет составить одной кнопкой.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" class="btn ghost" id="dCancel">Отмена</button>
+      <button type="submit" class="btn">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="textDialog">
+  <div class="card">
+    <h2 style="margin-top:0" id="tTitle"></h2>
+    <textarea id="tText" rows="14" readonly style="font-size:13px"></textarea>
+    <p class="muted" style="font-size:13px">Впишите ФИО и номер полиса. Отправить заявление можно через сайт или горячую линию страховой: они указаны на полисе ОМС.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn ghost" id="tClose">Закрыть</button>
+      <button type="button" class="btn ghost" id="tPrint">Распечатать</button>
+      <button type="button" class="btn" id="tCopy">Скопировать</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="prepDialog">
   <div class="card" id="prepBody"></div>
 </dialog>
@@ -292,6 +318,26 @@ function vaccinesHtml(plan) {
       «Если не прививались»: нужна, только если в детстве прививки не было или была одна. Это видно в медкарте, спросите терапевта.
       <a href="#" data-article="vaccination">Подробнее о прививках</a></div>
     <div class="grid">${list.map((i) => itemHtml(i)).join("")}</div>`;
+}
+
+function disputesHtml(plan, titles) {
+  const list = plan.disputes || [];
+  return `<h2>Проверьте, нет ли приписок</h2>
+    <div class="card">
+      <p style="margin-top:0">Приписка — это услуга в выписке ОМС, которую вам не оказывали. За неё поликлиника получает деньги,
+        а у вас в медкарте появляется обследование, которого не было. Выписку можно бесплатно заказать на Госуслугах: обычно она приходит в течение дня.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a class="btn ghost" href="https://www.gosuslugi.ru/600438/1" target="_blank" rel="noopener noreferrer">Заказать выписку на Госуслугах</a>
+        <button class="btn" type="button" id="disputeBtn">В выписке есть то, чего я не проходил(а)</button>
+        <a href="https://www.gosuslugi.ru/help/faq/oms_service_cost/50011" target="_blank" rel="noopener noreferrer" style="font-size:14px">Как это работает</a>
+        <a href="#" data-article="clinic_refused" style="font-size:14px">Что делать с припиской</a>
+      </div>
+      ${list.length ? `<table style="margin-top:12px"><thead><tr><th>Дата в выписке</th><th>Услуга</th><th>Комментарий</th><th></th></tr></thead><tbody>
+        ${list.map((d) => `<tr><td>${fmt(d.date)}</td><td>${esc(titles[d.test] || d.test)}</td><td>${esc(d.comment)}</td>
+          <td style="white-space:nowrap"><button class="btn ghost" data-displetter="${esc(d.id)}">Заявление в страховую</button>
+            <button class="btn danger" data-deldispute="${esc(d.id)}">Удалить</button></td></tr>`).join("")}</tbody></table>
+        <div class="muted" style="font-size:13px;margin-top:6px">Эти записи не учитываются в плане: сроки считаются так, будто обследования не было.</div>` : ""}
+    </div>`;
 }
 
 function monthTitle(d) {
@@ -567,7 +613,8 @@ const VIEWS = {
       <div class="card" style="margin-top:16px;overflow-x:auto">
         ${rows ? `<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th><th>Файл</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
           : `<p class="muted">Пока нет записей. Нажмите «+ Отметить прохождение».</p>`}
-      </div>`;
+      </div>
+      ${disputesHtml(plan, titles)}`;
   },
 
   metrics(plan) {
@@ -746,12 +793,22 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep],[data-letter]");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep],[data-letter],[data-displetter],[data-deldispute]");
   if (!t) return;
   if ($("#prepDialog").open && (t.dataset.mark || t.dataset.closeprep !== undefined)) $("#prepDialog").close();
   if (t.dataset.closeprep !== undefined) return;
   if (t.dataset.prep) return openPrep(t.dataset.prep);
   if (t.dataset.letter) { e.preventDefault(); return openLetter(t.dataset.letter); }
+  if (t.dataset.deldispute) {
+    if (!confirm("Удалить отметку о приписке?")) return;
+    S.plan = await api("DELETE", "/api/disputes/" + t.dataset.deldispute); render(); return toast("Удалено, план пересчитан");
+  }
+  if (t.dataset.displetter) {
+    try {
+      const r = await api("POST", "/api/letter", { kind: "dispute", id: t.dataset.displetter });
+      $("#tTitle").textContent = "Заявление в страховую о приписке"; $("#tText").value = r.text; return $("#textDialog").showModal();
+    } catch (err) { return toast(err.message); }
+  }
   if (t.dataset.article && $("#letterDialog").open) $("#letterDialog").close();
   if (t.dataset.delmetric) {
     if (!confirm("Удалить измерение?")) return;
@@ -876,11 +933,29 @@ $("#letterForm").addEventListener("submit", async (e) => {
 });
 $("#lClose").onclick = () => $("#letterDialog").close();
 $("#lPrint").onclick = () => printText($("#lText").value);
-$("#lCopy").onclick = async () => {
-  try { await navigator.clipboard.writeText($("#lText").value); }
-  catch { $("#lText").select(); document.execCommand("copy"); }
+async function copyText(area) {
+  try { await navigator.clipboard.writeText(area.value); }
+  catch { area.select(); document.execCommand("copy"); }
   toast("Текст скопирован: вставьте его в документ и впишите ФИО и номер полиса");
-};
+}
+$("#lCopy").onclick = () => copyText($("#lText"));
+$("#tCopy").onclick = () => copyText($("#tText"));
+$("#tPrint").onclick = () => printText($("#tText").value);
+$("#tClose").onclick = () => $("#textDialog").close();
+$("#dCancel").onclick = () => $("#disputeDialog").close();
+document.addEventListener("click", (e) => {
+  if (e.target.id !== "disputeBtn") return;
+  $("#dTest").innerHTML = S.tests.map((t) => `<option value="${esc(t.test)}">${esc(t.title)}</option>`).join("");
+  $("#dDate").value = ""; $("#dDate").max = S.plan.today; $("#dComment").value = "";
+  $("#disputeDialog").showModal();
+});
+$("#disputeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    S.plan = await api("POST", "/api/disputes", { test: $("#dTest").value, date: $("#dDate").value, comment: $("#dComment").value });
+    $("#disputeDialog").close(); render(); toast("Сохранено: эта запись не учитывается в плане");
+  } catch (err) { toast(err.message); }
+});
 $("#mTest").onchange = alsoList;
 $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };
