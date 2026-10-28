@@ -656,14 +656,6 @@ function whenText(it) {
   return it.next_due ? "следующее " + fmt(it.next_due) : "сделано";
 }
 
-function reviewHtml() {
-  // Кто проверил медицинские тексты: имя задаётся в data/review.json. Пока его нет, так и пишем.
-  const r = (S.plan && S.plan.review) || {};
-  return `<p class="muted small review">${r.reviewer
-    ? `Проверено: ${esc(r.reviewer)}${r.role ? ", " + esc(r.role) : ""}${r.date ? ", " + fmt(r.date) : ""}.`
-    : "Текст составлен по приказам Минздрава. Проверка врачом ещё не проведена."}</p>`;
-}
-
 function hasPrep(test) { const t = S.tests.find((x) => x.test === test); return !!(t && t.prep); }
 
 function itemHtml(it) {
@@ -1019,7 +1011,6 @@ const VIEWS = {
           <h2>Источники</h2>
           <ol class="src">${a.sources.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join("")}</ol>
           <p class="muted small">Актуальность источников проверена ${fmt(a.checked)}. Материал носит справочный характер и не заменяет консультацию врача.</p>
-          ${reviewHtml()}
         </article>`;
     }
     const groups = {};
@@ -1280,7 +1271,6 @@ function openPrep(test) {
     <b>До визита</b>${list(t.prep.before)}
     <b>Взять с собой</b>${list(t.prep.bring)}
     <p class="muted small">${esc(t.prep.note)}</p>
-    ${reviewHtml()}
     <div class="sheet-actions">
       <button type="button" class="btn quiet" data-close>Закрыть</button>
       <button type="button" class="btn" data-mark="${esc(t.test)}">Отметить пройденным</button>

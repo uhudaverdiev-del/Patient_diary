@@ -55,12 +55,6 @@ def check_today(value):
         raise ValueError("Дата расчёта должна быть в формате ГГГГ-ММ-ДД.")
 
 
-def load_review(path=ROOT / "data" / "review.json"):
-    """Кто проверил медицинские тексты. Пустое имя значит, что проверки ещё не было."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return {k: str(data.get(k) or "") for k in ("reviewer", "role", "date")}
-
-
 def second_stage(history, today):
     """Направление на второй этап по последней диспансеризации: пока он не пройден, это главный шаг."""
     disp = [r for r in history if r["test"] == "dispanserization" and r["date"] <= today]
@@ -108,7 +102,6 @@ class App:
         plan["profile"] = state["profile"]
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
         plan["second_stage"] = second_stage(counted, plan["today"])
-        plan["review"] = load_review()
         plan["reminders"] = reminders(plan)
         plan["consent"] = state.get("consent")
         plan["metrics"] = summarize(state.get("metrics", []))
