@@ -325,6 +325,73 @@ def _plan_age_rule(rule, birth, year_age, today, history, soon_days, horizon_day
     }
 
 
+def _plan_once_rule(rule, year_age, today, history):
+    """Прививка, которую делают один раз (курсом), если человек не болел и не прививался.
+
+    Без отметки статус «нет данных» с пояснением, когда она нужна: решает врач.
+    conditional: прививка по показаниям, в напоминания, календарь и «солнце» не входит.
+    """
+    lo, hi = rule["age_min"], rule.get("age_max")
+    if year_age < lo or (hi is not None and year_age > hi):
+        return None
+    last = _last_done(history, [rule["test"]], today)
+    if last is not None:
+        return {"last_date": last, "next_due": None, "status": "actual", "conditional": True,
+                "notes": ["Отмечено, что прививка сделана: повторять не нужно."]}
+    return {"last_date": None, "next_due": None, "status": "no_data", "conditional": True, "needs_date": True,
+            "notes": [rule["condition"], "Сведения о прививках есть в медкарте: спросите терапевта."]}
+
+
+def _make_item(rule, planned, sources, kind):
+    source = sources[rule["source"]]
+    return {
+        "id": rule["id"],
+        "kind": kind,
+        "test": rule["test"],
+        "title": rule["title"],
+        "who": rule.get("who") or describe_rule(rule),
+        "includes": rule.get("includes"),
+        "last_date": planned["last_date"].isoformat() if planned["last_date"] else None,
+        "next_due": planned["next_due"].isoformat() if planned["next_due"] else None,
+        "status": planned["status"],
+        "status_label": ("пройти в этом году" if planned.get("todo_this_year") and planned["status"] == "actual"
+                         else "если не прививались" if planned.get("conditional") and planned["status"] != "actual"
+                         else STATUS_LABELS[planned["status"]]),
+        "needs_date": planned.get("needs_date", False),
+        "upcoming": planned.get("upcoming", False),
+        "todo_this_year": planned.get("todo_this_year", False),
+        "conditional": planned.get("conditional", False),
+        "notes": planned["notes"],
+        "source": {"title": source["title"], "url": source["url"], "clause": rule["clause"],
+                   "short": source.get("short", "")},
+        "wiki": rule.get("wiki"),
+        "free_oms": True,
+    }
+
+
+def _plan_vaccines(rules_data, profile, birth, year_age, today, history, soon_days, horizon_days, titles):
+    """Прививки по национальному календарю (приказ № 1122н): отдельный блок плана."""
+    sex = profile.get("sex")
+    conditions = set(profile.get("conditions") or [])
+    result = []
+    for rule in rules_data.get("vaccines", []):
+        if rule["sex"] != "any" and rule["sex"] != sex:
+            continue
+        if rule.get("only_if") and not (conditions.intersection(rule["only_if"])
+                                        or year_age >= rule.get("or_year_age_min", 999)):
+            continue
+        if rule.get("once"):
+            planned = _plan_once_rule(rule, year_age, today, history)
+        else:
+            planned = _plan_interval_rule(rule, birth, year_age, today, history, soon_days, horizon_days, titles=titles)
+            if planned is not None and rule.get("season_note"):
+                planned["notes"].append(rule["season_note"])
+        if planned is not None:
+            result.append(_make_item(rule, planned, rules_data["sources"], "vaccine"))
+    result.sort(key=lambda i: (i["conditional"], STATUS_ORDER[i["status"]], i["next_due"] or "9999"))
+    return result
+
+
 def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=365):
     """Строит персональный план.
 
@@ -344,6 +411,7 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
         "problems": problems,
         "items": [],
         "risk_factors": [],
+        "vaccines": [],
     }
     if not result["ready"]:
         return result
@@ -368,6 +436,7 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
 
     titles = {r["test"]: r["title"] for r in rules_data["rules"]}
     titles.update({t["test"]: t["title"] for t in rules_data.get("extra_tests", [])})
+    titles.update({v["test"]: v["title"] for v in rules_data.get("vaccines", [])})
     active_tests = {r["test"] for r in rules_data["rules"] if in_band(r)}
 
     for rule in rules_data["rules"]:
@@ -389,26 +458,7 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
                 continues_after=continues_after, titles=titles)
         if planned is None:
             continue
-        source = rules_data["sources"][rule["source"]]
-        result["items"].append({
-            "id": rule["id"],
-            "test": rule["test"],
-            "title": rule["title"],
-            "who": describe_rule(rule),
-            "includes": rule.get("includes"),
-            "last_date": planned["last_date"].isoformat() if planned["last_date"] else None,
-            "next_due": planned["next_due"].isoformat() if planned["next_due"] else None,
-            "status": planned["status"],
-            "status_label": ("пройти в этом году" if planned.get("todo_this_year") and planned["status"] == "actual"
-                             else STATUS_LABELS[planned["status"]]),
-            "needs_date": planned.get("needs_date", False),
-            "upcoming": planned.get("upcoming", False),
-            "todo_this_year": planned.get("todo_this_year", False),
-            "notes": planned["notes"],
-            "source": {"title": source["title"], "url": source["url"], "clause": rule["clause"]},
-            "wiki": rule.get("wiki"),
-            "free_oms": True,
-        })
+        result["items"].append(_make_item(rule, planned, rules_data["sources"], "screening"))
 
     _merge_profosmotr(result["items"])
     order = STATUS_ORDER
@@ -426,6 +476,8 @@ def build_plan(profile, history=None, today=None, rules_data=None, horizon_days=
         "done": len(done),
         "progress_percent": round(100 * len(done) / len(required)) if required else 100,
     }
+    result["vaccines"] = _plan_vaccines(rules_data, profile, birth, year_age, today, history,
+                                        soon_days, horizon_days, titles)
     result["risk_factors"] = [dict(rules_data["risk_factors"][key], id=key)
                               for key in _risk_factors(profile) if key in rules_data.get("risk_factors", {})]
     return result

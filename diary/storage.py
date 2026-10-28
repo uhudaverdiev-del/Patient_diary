@@ -18,6 +18,8 @@ from diary.privacy import consent_record, detect_file_type
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "data" / "demo"
 MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_COMMENT = 500
+KNOWN_CONDITIONS = ("mastectomy", "hysterectomy", "flu_risk")
 NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
 
@@ -49,7 +51,8 @@ class Storage:
             value = profile.get(key)
             if value not in (None, ""):
                 clean[key] = str(value)
-        clean["conditions"] = [str(c) for c in profile.get("conditions") or []]
+        # Принимаем только известные отметки: всё остальное в профиль не попадает.
+        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in (profile.get("conditions") or [])]
         state["profile"] = clean
         if name is not None:
             state["name"] = str(name)
@@ -105,6 +108,37 @@ class Storage:
         self.save(state)
         return entry
 
+    def add_dispute(self, record, known_tests, today):
+        """Отметка «в выписке ОМС есть услуга, которую я не получал». Хранится только здесь."""
+        state = self.load()
+        if not state.get("consent"):
+            raise ValueError(NO_CONSENT)
+        test = record.get("test")
+        if test not in known_tests:
+            raise ValueError("Выберите обследование из списка.")
+        try:
+            when = date.fromisoformat(str(record.get("date")))
+        except ValueError:
+            raise ValueError("Укажите дату из выписки.")
+        if when > today:
+            raise ValueError("Дата не может быть в будущем.")
+        comment = str(record.get("comment") or "").strip()
+        if len(comment) > MAX_COMMENT:
+            raise ValueError(f"Комментарий длиннее {MAX_COMMENT} символов.")
+        entry = {"id": uuid.uuid4().hex[:12], "test": test, "date": when.isoformat(), "comment": comment}
+        state.setdefault("disputes", []).append(entry)
+        self.save(state)
+        return entry
+
+    def delete_dispute(self, dispute_id):
+        state = self.load()
+        kept = [d for d in state.get("disputes", []) if d.get("id") != dispute_id]
+        if len(kept) == len(state.get("disputes", [])):
+            raise KeyError(dispute_id)
+        state["disputes"] = kept
+        self.save(state)
+        return state
+
     def delete_metric(self, metric_id):
         state = self.load()
         kept = [m for m in state.get("metrics", []) if m.get("id") != metric_id]
@@ -133,12 +167,12 @@ class Storage:
         return path if path.is_file() else None
 
     def reset(self):
-        """Удаляет профиль, отметки и загруженные файлы."""
+        """Удаляет профиль, отметки, показатели, приписки и загруженные файлы."""
         if self.files_dir.exists():
             shutil.rmtree(self.files_dir)
         log = self.user_dir / "llm_log.jsonl"
         log.unlink(missing_ok=True)
-        state = {"name": "", "profile": {}, "history": [], "metrics": [], "consent": None}
+        state = {"name": "", "profile": {}, "history": [], "metrics": [], "disputes": [], "consent": None}
         self.save(state)
         return state
 

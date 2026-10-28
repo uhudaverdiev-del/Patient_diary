@@ -201,3 +201,51 @@ class IncompleteDataTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VaccinesTest(unittest.TestCase):
+    """Прививки по национальному календарю (приказ № 1122н, прил. 1)."""
+
+    def vaccines(self, birth, sex="female", history=None, conditions=None):
+        plan = build_plan({"birth_date": birth, "sex": sex, "conditions": conditions or []}, history or [], today=TODAY)
+        return {v["test"]: v for v in plan["vaccines"]}
+
+    def test_diphtheria_every_10_years(self):
+        v = self.vaccines("1985-03-12", history=[{"test": "vac_diphtheria", "date": "2014-05-01"}])
+        self.assertEqual(v["vac_diphtheria"]["status"], "overdue")
+        self.assertEqual(v["vac_diphtheria"]["next_due"], "2024-05-01")
+        self.assertEqual(v["vac_diphtheria"]["kind"], "vaccine")
+        self.assertIn("1122н", v["vac_diphtheria"]["source"]["short"])
+        fresh = self.vaccines("1985-03-12", history=[{"test": "vac_diphtheria", "date": "2020-05-01"}])
+        self.assertEqual(fresh["vac_diphtheria"]["status"], "actual")
+        self.assertEqual(fresh["vac_diphtheria"]["next_due"], "2030-05-01")
+
+    def test_flu_only_over_60_or_risk_group(self):
+        self.assertNotIn("vac_flu", self.vaccines("1985-03-12"))
+        self.assertIn("vac_flu", self.vaccines("1985-03-12", conditions=["flu_risk"]))
+        self.assertIn("vac_flu", self.vaccines("1965-12-31", sex="male"))  # 61 по году рождения
+        self.assertNotIn("vac_flu", self.vaccines("1966-01-01", sex="male"))
+        flu = self.vaccines("1960-06-01", sex="male", history=[{"test": "vac_flu", "date": "2026-10-01"}])["vac_flu"]
+        self.assertEqual(flu["status"], "actual")
+        self.assertEqual(flu["next_due"], "2027-10-01")
+
+    def test_conditional_once_vaccines(self):
+        young = self.vaccines("2004-02-01")  # 22 года
+        for test in ("vac_hepb", "vac_measles", "vac_rubella"):
+            self.assertTrue(young[test]["conditional"], test)
+            self.assertEqual(young[test]["status"], "no_data")
+            self.assertEqual(young[test]["status_label"], "если не прививались")
+        self.assertNotIn("vac_rubella", self.vaccines("2004-02-01", sex="male"))
+        self.assertNotIn("vac_measles", self.vaccines("1985-03-12"))  # старше 35
+        done = self.vaccines("2004-02-01", history=[{"test": "vac_hepb", "date": "2005-01-01"}])["vac_hepb"]
+        self.assertEqual(done["status"], "actual")
+        self.assertIsNone(done["next_due"])
+
+    def test_vaccines_not_in_screening_progress(self):
+        plan = plan_for("anna")
+        self.assertTrue(all(i["kind"] == "screening" for i in plan["items"]))
+        vaccines = {v["test"]: v for v in plan["vaccines"]}
+        self.assertEqual(set(vaccines), {"vac_diphtheria", "vac_hepb"})
+        self.assertEqual(vaccines["vac_diphtheria"]["status"], "overdue")
+        self.assertTrue(vaccines["vac_hepb"]["conditional"])
+        self.assertEqual(plan["vaccines"][0]["test"], "vac_diphtheria")  # обязательные выше условных

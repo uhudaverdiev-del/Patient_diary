@@ -56,7 +56,7 @@ class ApiScenarioTest(unittest.TestCase):
         items = {i["test"]: i for i in plan["items"]}
         for test in ("dispanserization", "fluorography", "gyn_exam", "mammography"):
             self.assertEqual(items[test]["last_date"], "2026-10-20", test)
-        self.assertEqual(len(plan["history"]), 5 + 4)
+        self.assertEqual(len(plan["history"]), 6 + 4)
         self.assertIn("в составе", next(r for r in plan["history"] if r["test"] == "gyn_exam" and r["date"] == "2026-10-20")["result"])
 
     def test_edit_record(self):
@@ -82,7 +82,7 @@ class ApiScenarioTest(unittest.TestCase):
         restarted = App(storage=Storage(self.tmp.name))
         code, plan = restarted.handle("GET", "/api/plan", TODAY, {})
         self.assertEqual(plan["name"], "Анна, 41 год")
-        self.assertEqual(len(plan["history"]), 5)
+        self.assertEqual(len(plan["history"]), 6)
 
     def test_bad_record_rejected(self):
         code, data = self.call("POST", "/api/history", {"test": "ecg"})

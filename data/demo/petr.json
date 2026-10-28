@@ -30,6 +30,16 @@
     {
       "test": "hepatitis_c",
       "date": "2020-04-01"
+    },
+    {
+      "test": "vac_diphtheria",
+      "date": "2021-03-01",
+      "result": "АДС-М"
+    },
+    {
+      "test": "vac_flu",
+      "date": "2025-10-15",
+      "result": ""
     }
   ]
 }

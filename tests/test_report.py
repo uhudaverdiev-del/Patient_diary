@@ -51,3 +51,31 @@ class ReportTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VaccinesInReportTest(unittest.TestCase):
+    def test_vaccines_block_and_questions(self):
+        plan = demo_plan("anna")
+        questions = " ".join(doctor_questions(plan))
+        self.assertIn("приказ № 1122н", questions)
+        self.assertIn("проверить по медкарте, нужны ли мне прививки", questions)
+        html = render_report(plan, {})
+        self.assertIn("Прививки (2)", html)
+        self.assertIn("приказа № 1122н", html)
+
+
+class PreparationTest(unittest.TestCase):
+    def test_every_test_has_preparation(self):
+        from app import test_catalog
+        from diary.engine import load_rules
+        for entry in test_catalog(load_rules()):
+            self.assertIsNotNone(entry["prep"], entry["test"])
+            self.assertTrue(entry["prep"]["before"], entry["test"])
+            self.assertIn("Паспорт", entry["prep"]["bring"])
+
+    def test_report_bring_list_without_repeats(self):
+        html = render_report(demo_plan("anna"), {})
+        self.assertIn("Как подготовиться", html)
+        self.assertEqual(html.count("<li>Паспорт</li>"), 1)
+        self.assertIn("дезодорант", html)  # маммография просрочена у Анны
+        self.assertIn("Прививка от дифтерии и столбняка:</b>", html)
