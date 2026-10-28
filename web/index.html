@@ -456,7 +456,7 @@
     <div class="field" id="mAlso" hidden><span class="label">Что из этого вам сделали в тот же день</span>
       <div class="muted small">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
       <div class="checks" id="mAlsoList" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px"></div></div>
-    <label class="switch" id="mStageRow" hidden><input type="checkbox" id="mStage"> Врач направил на второй этап</label>
+    <label class="switch" id="mStageRow" hidden><input type="checkbox" id="mStage"> <span>Врач направил на второй этап<span class="muted small" style="display:block">Это дополнительные обследования, если на первом этапе что-то нашли.</span></span></label>
     <div class="field"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" maxlength="2000" placeholder="Например: без патологии"></textarea></div>
     <div class="field" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div class="sheet-actions">
@@ -736,7 +736,7 @@ function mainStep(plan) {
     const disp = bundle.test === "dispanserization";
     return { item: bundle, tag: bundle.status === "overdue" ? "Срок уже прошёл" : "В этом году",
       title: disp ? "Пройдите диспансеризацию" : "Пройдите профилактический осмотр",
-      why: `Это бесплатная проверка здоровья по полису ОМС, ${disp ? "первый этап обычно занимает один день" : "обычно один визит"}. После неё зажжётся до ${n} ${rayWord(n)} из ${sun.total}.`,
+      why: `${disp ? "Это бесплатная проверка здоровья по полису ОМС: осмотр, анализы и обследования на рак по возрасту. Первый этап обычно занимает один день" : "Это короткая бесплатная проверка здоровья по полису ОМС: давление, анализы крови, ЭКГ по возрасту и осмотр врача. Обычно один визит"}. После неё зажжётся до ${n} ${rayWord(n)} из ${sun.total}.`,
       book: bundle.test,
       primary: `<button class="btn" data-article="how_to_pass">Как пройти</button>`,
       secondary: `<button class="btn ghost" data-mark="${esc(bundle.test)}">Я уже прошёл(ла)</button>` };
@@ -796,8 +796,8 @@ function onboardingHtml() {
         <button type="button" class="linkbtn muted" data-obback style="margin-top:12px">Назад</button></form>`;
   return `<div class="onb">
     <div class="sun mini-sun">${sunSvg(mini)}</div>
-    <h1>Какие обследования вам положены бесплатно?</h1>
-    <p class="lead">По полису ОМС каждому взрослому положены профилактический осмотр и диспансеризация. Ответьте на четыре вопроса, и дневник составит личный план по приказам Минздрава, со сроками и напоминаниями.</p>
+    <h1>За 2 минуты узнайте, какие обследования вам положены бесплатно</h1>
+    <p class="lead">Это ваше право по полису ОМС, то есть обычному медицинскому полису. Ответьте на четыре вопроса: дневник покажет личный план по приказам Минздрава и поможет записаться через Госуслуги.</p>
     <div class="card"><div class="onb-step">Шаг ${ob.step} из 4</div><div style="margin-top:10px">${body}</div></div>
     <p class="muted small">Данные хранятся только на этом компьютере. <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
   </div>`;
@@ -810,7 +810,7 @@ function lastCheckHtml() {
   const years = []; for (let y = year; y >= Math.max(born + 18, year - 15); y--) years.push(y);
   const [ly, lm] = (S.ob.last && S.ob.last.length === 7 ? S.ob.last : "-").split("-");
   return `<form id="obForm3"><span class="label">Когда вы последний раз проходили диспансеризацию?</span>
-      <p class="muted small" style="margin-top:2px">Примерно, по памяти. Точные даты есть в выписке ОМС на Госуслугах, их можно поправить потом.</p>
+      <p class="muted small" style="margin-top:2px">Примерно, по памяти. Точные даты есть в выписке ОМС на Госуслугах (это список того, что вам сделали по полису), их можно поправить потом.</p>
       <div class="ob-date"><select id="wLastMonth" aria-label="Месяц"><option value="">Месяц</option>
           ${MONTHS.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}" ${lm === String(i + 1).padStart(2, "0") ? "selected" : ""}>${m}</option>`).join("")}</select>
         <select id="wLastYear" aria-label="Год"><option value="">Год</option>
