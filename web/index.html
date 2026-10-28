@@ -48,7 +48,7 @@
   .item .src { font-size: 13px; }
   .actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
   button.btn, a.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
-  button.btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  button.btn.ghost, a.btn.ghost { background: var(--accent-soft); color: var(--accent); }
   button.btn.danger { background: var(--bad-soft); color: var(--bad); }
   .banner { border-radius: 10px; padding: 12px 14px; margin: 12px 0; background: var(--soon-soft); color: #5a3a00; }
   .banner.block { background: var(--bad-soft); color: #6d1414; }
@@ -242,6 +242,10 @@ function icsButton() {
   return `<a class="btn" href="/calendar.ics${todayParam("/calendar.ics")}" download="health-diary.ics">Добавить в календарь телефона</a>`;
 }
 
+function reportButton() {
+  return `<a class="btn ghost" href="/report${todayParam("/report")}" target="_blank" rel="noopener">Памятка для терапевта</a>`;
+}
+
 function remindersHtml(plan) {
   const list = plan.reminders || [];
   const shown = list.slice(0, 5);
@@ -251,8 +255,8 @@ function remindersHtml(plan) {
           <a href="#" data-mark="${esc(r.test)}">Отметить пройденным</a></li>`).join("")}</ul>
           ${list.length > shown.length ? `<div class="muted">И ещё ${list.length - shown.length} — см. «Мой план».</div>` : ""}`
         : `<p class="muted">В ближайшие 30 дней ничего проходить не нужно.</p>`}
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px">${icsButton()}
-        <span class="muted" style="font-size:13px">Все сроки попадут в Google, Яндекс или Apple Календарь с напоминанием за неделю и утром в день обследования.</span></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px">${icsButton()} ${reportButton()}
+        <span class="muted" style="font-size:13px">Календарь: все сроки с напоминанием за неделю и утром в день обследования. Памятка: одна страница для врача, её можно распечатать или сохранить в PDF.</span></div>
     </div>`;
 }
 
@@ -326,6 +330,7 @@ const VIEWS = {
         <td><button class="btn danger" data-del="${esc(r.id)}">Удалить</button></td></tr>`).join("");
     return `<h1>Пройденные обследования</h1>
       <div class="muted">После каждой записи сроки и статусы в плане пересчитываются автоматически.</div>
+      <p>${reportButton()}</p>
       <div class="card" style="margin-top:16px;overflow-x:auto">
         ${rows ? `<table><thead><tr><th>Дата</th><th>Обследование</th><th>Результат</th><th>Файл</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
           : `<p class="muted">Пока нет записей. Нажмите «+ Отметить прохождение».</p>`}
