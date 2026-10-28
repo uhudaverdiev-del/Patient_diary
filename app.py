@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 
 from diary.assistant import Assistant
 from diary.engine import build_plan, describe_rule, load_rules
+from diary.reminders import reminders, to_ics
 from diary.storage import Storage, list_demos
 from diary.wiki import load_wiki, search
 
@@ -44,7 +45,11 @@ class App:
         plan["name"] = state.get("name", "")
         plan["profile"] = state["profile"]
         plan["history"] = sorted(state["history"], key=lambda r: r["date"], reverse=True)
+        plan["reminders"] = reminders(plan)
         return plan
+
+    def calendar_file(self, today=None):
+        return to_ics(self.plan(today)).encode("utf-8")
 
     def handle(self, method, path, query, body):
         """Возвращает (код, данные). Отделено от HTTP, чтобы было удобно тестировать."""
@@ -90,10 +95,12 @@ def make_handler(app):
         def log_message(self, fmt, *args):
             pass
 
-        def _send(self, code, payload, content_type="application/json; charset=utf-8"):
+        def _send(self, code, payload, content_type="application/json; charset=utf-8", headers=None):
             data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", content_type)
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -112,6 +119,10 @@ def make_handler(app):
                         return self._send(400, {"error": "Неверный формат запроса."})
                 code, payload = app.handle(method, url.path, parse_qs(url.query), body)
                 return self._send(code, payload)
+            if method == "GET" and url.path == "/calendar.ics":
+                today = (parse_qs(url.query).get("today") or [None])[0]
+                return self._send(200, app.calendar_file(today), "text/calendar; charset=utf-8",
+                                  {"Content-Disposition": 'attachment; filename="health-diary.ics"'})
             if method == "GET" and url.path.startswith("/files/"):
                 path = app.storage.file_path(url.path[len("/files/"):])
                 if path is None:
