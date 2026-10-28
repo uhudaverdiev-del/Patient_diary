@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "data" / "demo"
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_COMMENT = 500
+MAX_NAME = 100
+MAX_RESULT = 2000
 KNOWN_CONDITIONS = ("mastectomy", "hysterectomy", "flu_risk")
 NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
@@ -50,11 +52,14 @@ class Storage:
         for key in ("birth_date", "sex", "region", "smoking"):
             value = profile.get(key)
             if value not in (None, ""):
-                clean[key] = str(value)
+                clean[key] = str(value)[:MAX_NAME]
         # Принимаем только известные отметки: всё остальное в профиль не попадает.
-        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in (profile.get("conditions") or [])]
+        conditions = profile.get("conditions") if isinstance(profile.get("conditions"), list) else []
+        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in conditions]
         state["profile"] = clean
         if name is not None:
+            if len(str(name)) > MAX_NAME:
+                raise ValueError(f"Имя длиннее {MAX_NAME} символов.")
             state["name"] = str(name)
         self.save(state)
         return state
@@ -62,9 +67,10 @@ class Storage:
     def add_record(self, record):
         test = record.get("test")
         record_date = record.get("date")
-        if not test or not record_date:
+        if not isinstance(test, str) or not isinstance(record_date, str) or not test or not record_date:
             raise ValueError("Укажите обследование и дату прохождения.")
         date.fromisoformat(record_date)
+        _check_result(record.get("result"))
         if not self.load().get("consent"):
             raise ValueError(NO_CONSENT)
         entry = {
@@ -74,6 +80,8 @@ class Storage:
             "result": str(record.get("result") or ""),
         }
         upload = record.get("file")
+        if upload and not isinstance(upload, dict):
+            raise ValueError("Неверный формат файла.")
         if upload and upload.get("data"):
             entry["file"] = self._save_file(entry["id"], upload)
         state = self.load()
@@ -89,8 +97,9 @@ class Storage:
             raise KeyError(record_id)
         test = changes.get("test", record["test"])
         record_date = changes.get("date", record["date"])
-        if not test or not record_date:
+        if not isinstance(test, str) or not isinstance(record_date, str) or not test or not record_date:
             raise ValueError("Укажите обследование и дату прохождения.")
+        _check_result(changes.get("result"))
         if known_tests is not None and test not in known_tests:
             raise ValueError("Неизвестное обследование.")
         date.fromisoformat(record_date)
@@ -194,7 +203,7 @@ class Storage:
         return state
 
     def _save_file(self, record_id, upload):
-        raw = base64.b64decode(upload["data"].split(",")[-1])
+        raw = base64.b64decode(str(upload["data"]).split(",")[-1])
         if len(raw) > MAX_FILE_BYTES:
             raise ValueError("Файл больше 10 МБ.")
         kind = detect_file_type(raw)
@@ -207,6 +216,11 @@ class Storage:
         self.files_dir.mkdir(parents=True, exist_ok=True)
         (self.files_dir / stored).write_bytes(raw)
         return {"name": original, "stored": stored, "size": len(raw)}
+
+
+def _check_result(value):
+    if value is not None and len(str(value)) > MAX_RESULT:
+        raise ValueError(f"Результат длиннее {MAX_RESULT} символов: сократите текст или приложите файл.")
 
 
 def list_demos():

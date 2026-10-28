@@ -447,7 +447,7 @@
     <div class="field" id="mAlso" hidden><span class="label">Что из этого вам сделали в тот же день</span>
       <div class="muted small">Эти обследования входят в профосмотр и диспансеризацию. Отмеченные сохранятся с той же датой.</div>
       <div class="checks" id="mAlsoList" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px"></div></div>
-    <div class="field"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" placeholder="Например: без патологии"></textarea></div>
+    <div class="field"><label for="mResult">Результат или комментарий</label><textarea id="mResult" rows="3" maxlength="2000" placeholder="Например: без патологии"></textarea></div>
     <div class="field" id="mFileRow"><label for="mFile">Файл (PDF, JPG или PNG, до 10 МБ)</label><input type="file" id="mFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
     <div class="sheet-actions">
       <button type="button" class="btn quiet" id="mCancel">Отмена</button>
@@ -751,7 +751,7 @@ function onboardingHtml() {
     : ob.step === 2 ? `<span class="label">Ваш пол</span><p class="muted small" style="margin-top:2px">От него зависит, какие обследования положены.</p>
         <div class="big-choice"><button class="btn ghost" data-sex="female">Женский</button><button class="btn ghost" data-sex="male">Мужской</button></div>
         <button class="linkbtn muted" data-obback style="margin-top:12px">Назад</button>`
-    : `<form id="welcomeForm"><div class="field"><label for="wName">Как к вам обращаться</label><input id="wName" placeholder="Можно не заполнять" autocomplete="given-name" value="${esc(ob.name || "")}"></div>
+    : `<form id="welcomeForm"><div class="field"><label for="wName">Как к вам обращаться</label><input id="wName" maxlength="100" placeholder="Можно не заполнять" autocomplete="given-name" value="${esc(ob.name || "")}"></div>
         ${consentHtml("wConsent")}
         <button class="btn" type="submit" style="width:100%">Показать мой план</button>
         <button type="button" class="linkbtn muted" data-obback style="margin-top:12px">Назад</button></form>`;
@@ -972,7 +972,7 @@ const VIEWS = {
       <p class="lead">Обязательны только дата рождения и пол: от них зависит состав плана.</p>
       ${problemsHtml(plan)}
       <form class="card narrow" id="profileForm" style="margin-top:20px">
-        <div class="field"><label for="pName">Имя</label><input id="pName" value="${esc(plan.name)}"></div>
+        <div class="field"><label for="pName">Имя</label><input id="pName" maxlength="100" value="${esc(plan.name)}"></div>
         <div class="field"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}"></div>
         <div class="field"><label for="pSex">Пол *</label><select id="pSex">
           <option value="">не указан</option>

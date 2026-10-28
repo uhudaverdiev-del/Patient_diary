@@ -7,7 +7,9 @@
 import argparse
 import json
 import mimetypes
+import sys
 import threading
+import traceback
 import webbrowser
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,10 +30,28 @@ from diary.wiki import load_wiki, search
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAX_BODY = 15 * 1024 * 1024
+OLDEST_RECORD = date(1900, 1, 1)
+# Дневник работает только на этом компьютере: другие адреса в заголовке Host означают,
+# что страницу открыли через чужой сайт (подмена адреса, DNS rebinding).
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+# Страницы могут грузить только свои файлы и отправлять данные только на свой адрес.
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+       "form-action 'self'; frame-ancestors 'none'")
 
 
 def fmt_date(iso):
     return date.fromisoformat(iso).strftime("%d.%m.%Y")
+
+
+def check_today(value):
+    """Дата расчёта из адреса (?today=): только настоящая дата ГГГГ-ММ-ДД."""
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value)).isoformat()
+    except ValueError:
+        raise ValueError("Дата расчёта должна быть в формате ГГГГ-ММ-ДД.")
 
 
 def test_catalog(rules_data):
@@ -80,13 +100,29 @@ class App:
     def known_tests(self):
         return {t["test"] for t in test_catalog(self.rules)}
 
-    def add_records(self, body):
+    def check_record_date(self, value, today=None):
+        """Дата прохождения не может быть позже даты расчёта: иначе план считал бы будущее пройденным."""
+        if value is None:
+            return
+        try:
+            when = date.fromisoformat(str(value))
+        except ValueError:
+            raise ValueError("Укажите дату прохождения в формате ГГГГ-ММ-ДД.")
+        limit = parse_date(today or self.today) or date.today()
+        if when > limit:
+            raise ValueError("Дата прохождения не может быть позже сегодняшней.")
+        if when < OLDEST_RECORD:
+            raise ValueError("Проверьте год в дате прохождения.")
+
+    def add_records(self, body, today=None):
         """Отметка о прохождении. Для диспансеризации и профосмотра в also приходит список
         входящих в них обследований: каждое сохраняется отдельной записью с той же датой."""
         known = self.known_tests()
-        if body.get("test") and body["test"] not in known:
+        if body.get("test") is not None and (not isinstance(body["test"], str) or body["test"] not in known):
             raise ValueError("Неизвестное обследование.")
-        also = [t for t in body.get("also") or [] if t in known and t != body["test"]]
+        self.check_record_date(body.get("date"), today)
+        also = body.get("also") if isinstance(body.get("also"), list) else []
+        also = [t for t in also if t in known and t != body["test"]]
         self.storage.add_record(body)
         for test in dict.fromkeys(also):
             self.storage.add_record({"test": test, "date": body["date"], "result": f"в составе: {self.title(body['test'])}"})
@@ -116,8 +152,10 @@ class App:
 
     def handle(self, method, path, query, body):
         """Возвращает (код, данные). Отделено от HTTP, чтобы было удобно тестировать."""
-        today = (query.get("today") or [None])[0] or None
         try:
+            today = check_today((query.get("today") or [None])[0])
+            if not isinstance(body, dict):
+                raise ValueError("Неверный формат запроса.")
             if method == "GET" and path == "/api/plan":
                 return 200, self.plan(today)
             if method == "GET" and path == "/api/demos":
@@ -129,7 +167,10 @@ class App:
             if method == "GET" and path.startswith("/api/wiki/"):
                 return 200, self.wiki[path.rsplit("/", 1)[-1]]
             if method == "POST" and path == "/api/ask":
-                return 200, self.assistant.ask(body.get("question", ""), self.plan(today))
+                question = body.get("question", "")
+                if not isinstance(question, str):
+                    raise ValueError("Задайте вопрос текстом.")
+                return 200, self.assistant.ask(question, self.plan(today))
             if method == "GET" and path == "/api/assistant":
                 return 200, {"llm_enabled": self.assistant.llm_enabled, "status": self.assistant.status()}
             if method == "GET" and path == "/api/consent":
@@ -137,12 +178,15 @@ class App:
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":
+                if not isinstance(body.get("profile", {}), dict):
+                    raise ValueError("Неверный формат профиля.")
                 self.storage.save_profile(body.get("profile", {}), body.get("name"), consent=body.get("consent") is True)
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/history":
-                self.add_records(body)
+                self.add_records(body, today)
                 return 200, self.plan(today)
             if method == "PUT" and path.startswith("/api/history/"):
+                self.check_record_date(body.get("date"), today)
                 self.storage.update_record(path.rsplit("/", 1)[-1], body, self.known_tests())
                 return 200, self.plan(today)
             if method == "DELETE" and path.startswith("/api/history/"):
@@ -167,7 +211,7 @@ class App:
                 self.storage.delete_dispute(path.rsplit("/", 1)[-1])
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/demo":
-                self.storage.load_demo(body.get("id", ""))
+                self.storage.load_demo(str(body.get("id", "")))
                 return 200, self.plan(today)
         except KeyError:
             return 404, {"error": "Не найдено."}
@@ -177,9 +221,34 @@ class App:
 
 
 def make_handler(app):
+    # Изменения данных идут по одному, чтобы два одновременных сохранения не затёрли друг друга.
+    write_lock = threading.Lock()
+
     class Handler(BaseHTTPRequestHandler):
+        timeout = 30  # запрос, который не дослал данные, не держит сервер вечно
+
         def log_message(self, fmt, *args):
             pass
+
+        def _host_ok(self):
+            port = self.server.server_address[1]
+            host = (self.headers.get("Host") or "").strip().lower()
+            return host in {f"{h}:{port}" for h in LOCAL_HOSTS} or (port == 80 and host in LOCAL_HOSTS)
+
+        def _same_site(self):
+            """Изменять данные можно только со страниц самого дневника, а не с чужого сайта.
+            Браузер не даст чужому сайту отправить запрос с типом application/json без нашего разрешения,
+            а заголовки Origin и Sec-Fetch-Site прямо говорят, откуда пришёл запрос."""
+            ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if ctype != "application/json":
+                return False
+            if (self.headers.get("Sec-Fetch-Site") or "same-origin") not in ("same-origin", "none"):
+                return False
+            origin = self.headers.get("Origin")
+            if origin is not None:
+                port = self.server.server_address[1]
+                return origin.lower() in {f"http://{h}:{port}" for h in LOCAL_HOSTS}
+            return True
 
         def _send(self, code, payload, content_type="application/json; charset=utf-8", headers=None):
             data = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -189,17 +258,42 @@ def make_handler(app):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
             self.send_header("Referrer-Policy", "no-referrer")
-            for key, value in (headers or {}).items():
+            headers = dict(headers or {})
+            # данные о здоровье не оставляем в кэше браузера на диске
+            headers.setdefault("Cache-Control", "no-store")
+            if content_type.startswith("text/html"):
+                headers.setdefault("Content-Security-Policy", CSP)
+            for key, value in headers.items():
                 self.send_header(key, value)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
 
         def _route(self, method):
+            try:
+                self._route_safe(method)
+            except Exception:
+                # Сбой в одном запросе не роняет сервер и не обрывает соединение молча.
+                traceback.print_exc(file=sys.stderr)
+                try:
+                    self._send(500, {"error": "Что-то пошло не так. Обновите страницу и попробуйте ещё раз."})
+                except OSError:
+                    pass
+
+        def _route_safe(self, method):
             url = urlparse(self.path)
+            if not self._host_ok():
+                return self._send(403, {"error": "Дневник открывается только по адресу http://127.0.0.1."})
+            if method != "GET" and not self._same_site():
+                return self._send(403, {"error": "Запрос отклонён: изменять данные можно только со страницы дневника."})
             if url.path.startswith("/api/"):
                 body = {}
-                length = int(self.headers.get("Content-Length") or 0)
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = -1
+                if length < 0:
+                    return self._send(400, {"error": "Неверный формат запроса."})
                 if length > MAX_BODY:
                     return self._send(413, {"error": "Слишком большой запрос."})
                 if length:
@@ -207,7 +301,11 @@ def make_handler(app):
                         body = json.loads(self.rfile.read(length).decode("utf-8"))
                     except ValueError:
                         return self._send(400, {"error": "Неверный формат запроса."})
-                code, payload = app.handle(method, url.path, parse_qs(url.query), body)
+                if method != "GET" and url.path != "/api/ask":
+                    with write_lock:
+                        code, payload = app.handle(method, url.path, parse_qs(url.query), body)
+                else:
+                    code, payload = app.handle(method, url.path, parse_qs(url.query), body)
                 return self._send(code, payload)
             if method == "GET" and url.path == "/privacy":
                 return self._send(200, policy_html().encode("utf-8"), "text/html; charset=utf-8")
@@ -215,11 +313,14 @@ def make_handler(app):
                 return self._send(200, export_archive(app.storage), "application/zip",
                                   {"Content-Disposition": 'attachment; filename="health-diary-data.zip"',
                                    "Cache-Control": "no-store"})
+            if method == "GET" and url.path in ("/report", "/calendar.ics"):
+                try:
+                    today = check_today((parse_qs(url.query).get("today") or [None])[0])
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
             if method == "GET" and url.path == "/report":
-                today = (parse_qs(url.query).get("today") or [None])[0]
                 return self._send(200, app.report_page(today), "text/html; charset=utf-8")
             if method == "GET" and url.path == "/calendar.ics":
-                today = (parse_qs(url.query).get("today") or [None])[0]
                 return self._send(200, app.calendar_file(today), "text/calendar; charset=utf-8",
                                   {"Content-Disposition": 'attachment; filename="health-diary.ics"'})
             if method == "GET" and url.path.startswith("/files/"):
