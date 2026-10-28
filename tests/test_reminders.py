@@ -18,6 +18,16 @@ def demo_plan(name, today=TODAY):
     return build_plan(demo["profile"], demo["history"], today=today)
 
 
+class YoungDemoTest(unittest.TestCase):
+    def test_disp_at_21_next_at_24_profosmotr_yearly(self):
+        # Анна Островская, 2004 г. р.: диспансеризация в 2025 году (21 год), следующая в 2028-м (24 года).
+        items = {i["test"]: i for i in demo_plan("ostrovskaya")["items"]}
+        self.assertEqual(items["dispanserization"]["status"], "actual")
+        self.assertEqual(items["dispanserization"]["next_due"][:4], "2028")
+        self.assertEqual(items["profosmotr"]["status"], "overdue")
+        self.assertNotIn("mammography", items)
+
+
 class RemindersTest(unittest.TestCase):
     def test_overdue_first_then_soon(self):
         items = reminders(demo_plan("anna"))
