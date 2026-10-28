@@ -198,6 +198,33 @@
     </div>
   </form>
 </dialog>
+<dialog id="letterDialog">
+  <form class="card" id="letterForm">
+    <h2 style="margin-top:0">Заявление, если отказали</h2>
+    <div class="muted" style="font-size:14px;margin-bottom:12px" id="lTitle"></div>
+    <div class="row"><label for="lReason">Что произошло</label><select id="lReason">
+      <option value="no_ticket">Не дали талон, не записали</option>
+      <option value="paid">Предложили платно или направили в платное отделение</option>
+      <option value="not_entitled">Сказали, что мне это не положено</option>
+      <option value="other">Другое</option></select></div>
+    <div class="row"><label for="lDate">Когда это было</label><input type="date" id="lDate" required></div>
+    <div class="row checks"><label>Кому написать</label>
+      <label><input type="radio" name="lTo" value="chief" checked> Главному врачу поликлиники: обычно начинают с него</label>
+      <label><input type="radio" name="lTo" value="smo"> В страховую компанию: её телефон и название есть на полисе ОМС</label></div>
+    <div class="privacy-note" style="margin:0 0 12px">ФИО и номер полиса впишите сами: сервис их не подставляет. Текст письма нигде не сохраняется и никуда не отправляется.</div>
+    <div id="lResult" style="display:none">
+      <textarea id="lText" rows="14" readonly style="font-size:13px"></textarea>
+      <p class="muted" style="font-size:13px">Заявление пишут в двух экземплярах: один отдают, на втором просят поставить отметку о приёме с датой.
+        <a href="#" data-article="clinic_refused">Куда ещё можно обратиться</a></p>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn ghost" id="lClose">Закрыть</button>
+      <button type="button" class="btn ghost" id="lPrint" style="display:none">Распечатать</button>
+      <button type="button" class="btn ghost" id="lCopy" style="display:none">Скопировать</button>
+      <button type="submit" class="btn">Составить текст</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="prepDialog">
   <div class="card" id="prepBody"></div>
 </dialog>
@@ -247,6 +274,7 @@ function itemHtml(it, compact) {
       ${it.notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}
       ${compact ? "" : `${it.includes ? `<div class="muted" style="font-size:14px">Включает: ${esc(it.includes)}</div>` : ""}
       <div class="src muted">Основание: <a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.clause)} ${esc(it.source.short || "приказа № 404н")}</a></div>`}
+      ${(it.status !== "actual" || it.todo_this_year) && !it.conditional ? `<div class="src"><a href="#" class="muted" data-letter="${esc(it.test)}">Отказали в поликлинике?</a></div>` : ""}
     </div>
     <div class="actions">
       <button class="btn" data-mark="${esc(it.test)}">Пройдено</button>
@@ -686,6 +714,28 @@ function openPrep(test) {
   $("#prepDialog").showModal();
 }
 
+function openLetter(test) {
+  const it = calendarItems(S.plan).find((i) => i.test === test);
+  if (!it) return;
+  S.letterTest = test;
+  $("#lTitle").textContent = it.title;
+  $("#lDate").value = S.plan.today; $("#lDate").max = S.plan.today;
+  $("#lResult").style.display = "none"; $("#lCopy").style.display = "none"; $("#lPrint").style.display = "none";
+  $("#letterDialog").showModal();
+}
+
+function printText(text) {
+  // Печатаем только текст: без скриптов и разметки из письма.
+  const w = window.open("", "_blank");
+  if (!w) return toast("Браузер не дал открыть окно печати: скопируйте текст.");
+  const pre = w.document.createElement("pre");
+  pre.style.cssText = "white-space:pre-wrap;font:14px/1.5 Arial,sans-serif;max-width:680px;margin:40px auto";
+  pre.textContent = text;
+  w.document.title = "Заявление";
+  w.document.body.append(pre);
+  w.print();
+}
+
 function readFile(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -696,11 +746,13 @@ function readFile(file) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep]");
+  const t = e.target.closest("[data-delmetric],[data-tab],[data-mark],[data-del],[data-edit],[data-goto],[data-wiki],[data-article],[data-wikilist],[data-ask],[data-demo],[data-reset],[data-overdue],[data-prep],[data-closeprep],[data-letter]");
   if (!t) return;
   if ($("#prepDialog").open && (t.dataset.mark || t.dataset.closeprep !== undefined)) $("#prepDialog").close();
   if (t.dataset.closeprep !== undefined) return;
   if (t.dataset.prep) return openPrep(t.dataset.prep);
+  if (t.dataset.letter) { e.preventDefault(); return openLetter(t.dataset.letter); }
+  if (t.dataset.article && $("#letterDialog").open) $("#letterDialog").close();
   if (t.dataset.delmetric) {
     if (!confirm("Удалить измерение?")) return;
     S.plan = await api("DELETE", "/api/metrics/" + t.dataset.delmetric); return render();
@@ -813,6 +865,22 @@ $("#markForm").addEventListener("submit", async (e) => {
   } catch (err) { toast(err.message); }
 });
 $("#mCancel").onclick = () => $("#markDialog").close();
+$("#letterForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    const r = await api("POST", "/api/letter", { test: S.letterTest, reason: $("#lReason").value, date: $("#lDate").value,
+      addressee: document.querySelector("input[name=lTo]:checked").value });
+    $("#lText").value = r.text;
+    ["lResult", "lCopy", "lPrint"].forEach((id) => ($("#" + id).style.display = ""));
+  } catch (err) { toast(err.message); }
+});
+$("#lClose").onclick = () => $("#letterDialog").close();
+$("#lPrint").onclick = () => printText($("#lText").value);
+$("#lCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText($("#lText").value); }
+  catch { $("#lText").select(); document.execCommand("copy"); }
+  toast("Текст скопирован: вставьте его в документ и впишите ФИО и номер полиса");
+};
 $("#mTest").onchange = alsoList;
 $("#markBtn").onclick = () => openMark();
 $("#today").onchange = async () => { S.plan = await api("GET", "/api/plan"); render(); };

@@ -9,6 +9,7 @@ import json
 import mimetypes
 import threading
 import webbrowser
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -17,6 +18,7 @@ from diary.assistant import Assistant
 from diary.preparation import prep_for
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules, parse_date
+from diary.letters import refusal_letter
 from diary.metrics import summarize
 from diary.motivation import sun_rays
 from diary.reminders import reminders, to_ics
@@ -78,6 +80,14 @@ class App:
     def title(self, test):
         return next((t["title"] for t in test_catalog(self.rules) if t["test"] == test), test)
 
+    def letter(self, body, today=None):
+        plan = self.plan(today)
+        when_today = date.fromisoformat(plan["today"])
+        item = next((i for i in plan["items"] + plan["vaccines"] if i["test"] == body.get("test")), None)
+        if item is None:
+            raise ValueError("Этого обследования нет в вашем плане.")
+        return refusal_letter(item, body.get("reason"), body.get("date"), body.get("addressee"), when_today)
+
     def report_page(self, today=None):
         titles = {t["test"]: t["title"] for t in test_catalog(self.rules)}
         return render_report(self.plan(today), titles).encode("utf-8")
@@ -128,6 +138,9 @@ class App:
             if method == "POST" and path == "/api/reset":
                 self.storage.reset()
                 return 200, self.plan(today)
+            if method == "POST" and path == "/api/letter":
+                # Текст письма только возвращается: не сохраняется, не пишется в журнал, не уходит в нейросеть.
+                return 200, {"text": self.letter(body, today)}
             if method == "POST" and path == "/api/demo":
                 self.storage.load_demo(body.get("id", ""))
                 return 200, self.plan(today)
