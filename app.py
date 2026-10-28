@@ -7,6 +7,8 @@
 import argparse
 import json
 import mimetypes
+import threading
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -84,6 +86,9 @@ class App:
                 return 200, self.plan(today)
             if method == "DELETE" and path.startswith("/api/history/"):
                 self.storage.delete_record(path.rsplit("/", 1)[-1])
+                return 200, self.plan(today)
+            if method == "POST" and path == "/api/reset":
+                self.storage.reset()
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/demo":
                 self.storage.load_demo(body.get("id", ""))
@@ -163,14 +168,20 @@ def main():
     parser = argparse.ArgumentParser(description="Дневник здоровья пациента")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--today", help="фиксированная дата расчёта ГГГГ-ММ-ДД (для демонстрации)")
+    parser.add_argument("--open", action="store_true", help="сразу открыть сервис в браузере")
     args = parser.parse_args()
     app = App(today=args.today)
-    if not app.storage.state_path.exists():
-        app.storage.load_demo("anna")
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))
+    except OSError:
+        print(f"Порт {args.port} занят: возможно, дневник уже запущен в другом окне. "
+              f"Откройте http://127.0.0.1:{args.port} или запустите с --port 8001.", flush=True)
+        return
     print(f"Дневник здоровья запущен: http://127.0.0.1:{args.port}  (остановить: Ctrl+C)", flush=True)
     for line in app.assistant.status():
         print(line, flush=True)
+    if args.open:
+        threading.Timer(0.5, webbrowser.open, [f"http://127.0.0.1:{args.port}"]).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -86,6 +86,14 @@ class Storage:
         path = self.files_dir / stored_name
         return path if path.is_file() else None
 
+    def reset(self):
+        """Удаляет профиль, отметки и загруженные файлы."""
+        if self.files_dir.exists():
+            shutil.rmtree(self.files_dir)
+        state = {"name": "", "profile": {}, "history": []}
+        self.save(state)
+        return state
+
     def load_demo(self, demo_name):
         if not re.fullmatch(r"[\w\-]+", demo_name):
             raise KeyError(demo_name)
