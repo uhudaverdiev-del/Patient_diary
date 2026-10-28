@@ -138,7 +138,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false };
+const S = { plan: null, tests: [], demos: [], tab: "home", chat: [], llm: false, llmStatus: [] };
 const QUICK = ["Что мне нужно пройти в этом году?", "Какие обследования просрочены?", "Зачем нужна маммография?", "Как получить выходной на работе для диспансеризации?"];
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -338,7 +338,8 @@ const VIEWS = {
         </div>`).join("");
     return `<h1>Ассистент</h1>
       <div class="muted">Отвечает по вашему плану и статьям Wiki, всегда со ссылками на источники. Не ставит диагнозы и не назначает лечение.
-        Режим: <b>${S.llm ? "YandexGPT + проверка источников" : "локальный (без интернета)"}</b></div>
+        Режим: <b>${S.llm ? "YandexGPT + проверка источников" : "локальный (без интернета)"}</b>
+        ${!S.llm && S.llmStatus.length > 1 ? `<details class="muted"><summary>Почему не YandexGPT?</summary>${S.llmStatus.slice(1).map(esc).join("<br>")}</details>` : ""}</div>
       <div class="card chat" style="margin-top:16px">
         <div id="chatLog">${msgs || `<p class="muted">Спросите, например:</p>`}</div>
         <div class="quick">${QUICK.map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>
@@ -479,6 +480,7 @@ $("#demo").onchange = async () => {
   let info;
   [S.tests, S.demos, S.plan, , info] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant")]);
   S.llm = info.llm_enabled;
+  S.llmStatus = info.status || [];
   $("#demo").innerHTML = `<option value="">— выбрать —</option>` + S.demos.map((d) => `<option value="${esc(d.id)}" title="${esc(d.description)}">${esc(d.name)}</option>`).join("");
   render();
 })();

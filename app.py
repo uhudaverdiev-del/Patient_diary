@@ -63,7 +63,7 @@ class App:
             if method == "POST" and path == "/api/ask":
                 return 200, self.assistant.ask(body.get("question", ""), self.plan(today))
             if method == "GET" and path == "/api/assistant":
-                return 200, {"llm_enabled": self.assistant.llm_enabled}
+                return 200, {"llm_enabled": self.assistant.llm_enabled, "status": self.assistant.status()}
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":
@@ -149,7 +149,9 @@ def main():
     if not app.storage.state_path.exists():
         app.storage.load_demo("anna")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))
-    print(f"Дневник здоровья запущен: http://127.0.0.1:{args.port}  (остановить: Ctrl+C)")
+    print(f"Дневник здоровья запущен: http://127.0.0.1:{args.port}  (остановить: Ctrl+C)", flush=True)
+    for line in app.assistant.status():
+        print(line, flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
