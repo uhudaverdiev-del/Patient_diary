@@ -57,6 +57,11 @@
   .month.now { border-color: var(--accent); }
   .chip { display: block; border-radius: 8px; padding: 6px 8px; margin: 6px 0; font-size: 13px; border-left: 4px solid var(--ok); background: var(--ok-soft); cursor: pointer; }
   .chip.overdue { border-color: var(--bad); background: var(--bad-soft); }
+  .reminders ul { margin: 0; padding-left: 18px; }
+  .reminders li { margin: 4px 0; }
+  .reminders li.overdue::marker { color: var(--bad); }
+  .reminders li.soon::marker { color: var(--soon); }
+  .reminders li a { font-size: 13px; margin-left: 6px; }
   .chip.soon { border-color: var(--soon); background: var(--soon-soft); }
   .chip small { display: block; color: var(--muted); }
   form .row { display: grid; gap: 6px; margin-bottom: 14px; }
@@ -233,6 +238,24 @@ async function loadWikiList(q) {
   S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
 }
 
+function icsButton() {
+  return `<a class="btn" href="/calendar.ics${todayParam("/calendar.ics")}" download="health-diary.ics">Добавить в календарь телефона</a>`;
+}
+
+function remindersHtml(plan) {
+  const list = plan.reminders || [];
+  const shown = list.slice(0, 5);
+  return `<div class="card reminders" style="margin-top:16px">
+      <h3 style="margin-top:0">Напоминания</h3>
+      ${shown.length ? `<ul>${shown.map((r) => `<li class="${r.overdue ? "overdue" : "soon"}"><b>${esc(r.title)}</b> — ${esc(r.text)}
+          <a href="#" data-mark="${esc(r.test)}">Отметить пройденным</a></li>`).join("")}</ul>
+          ${list.length > shown.length ? `<div class="muted">И ещё ${list.length - shown.length} — см. «Мой план».</div>` : ""}`
+        : `<p class="muted">В ближайшие 30 дней ничего проходить не нужно.</p>`}
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px">${icsButton()}
+        <span class="muted" style="font-size:13px">Все сроки попадут в Google, Яндекс или Apple Календарь с напоминанием за неделю и утром в день обследования.</span></div>
+    </div>`;
+}
+
 const VIEWS = {
   home(plan) {
     const name = plan.name ? esc(plan.name) : "Добро пожаловать";
@@ -248,6 +271,7 @@ const VIEWS = {
         <div class="tile actual"><b>${s.counts.actual}</b>актуально</div>
         <div class="tile progress"><b>${s.progress_percent}%</b>план выполнен<div class="meter"><i style="width:${s.progress_percent}%"></i></div></div>
       </div>
+      ${remindersHtml(plan)}
       <div class="card" style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <b style="margin-right:8px">Спросите ассистента:</b>
         ${QUICK.slice(0, 3).map((q) => `<button class="btn ghost" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}
@@ -282,6 +306,7 @@ const VIEWS = {
     const later = plan.items.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
     return `<h1>Календарь обследований</h1>
       <div class="muted">Ближайшие 12 месяцев. Нажмите на обследование, чтобы отметить его пройденным.</div>
+      <p>${icsButton()}</p>
       <div class="grid cal" style="margin-top:16px">
         ${overdue.length ? `<div class="card month"><h3 style="color:var(--bad)">Просрочено</h3>${overdue.map(chip).join("")}</div>` : ""}
         ${months.map((m, idx) => {
@@ -408,7 +433,7 @@ document.addEventListener("click", async (e) => {
   if (t.dataset.wikilist) { e.preventDefault(); S.article = null; return go("wiki"); }
   if (t.dataset.tab) { if (t.dataset.tab === "wiki") S.article = null; return go(t.dataset.tab); }
   if (t.dataset.goto) { e.preventDefault(); return go(t.dataset.goto); }
-  if (t.dataset.mark) return openMark(t.dataset.mark);
+  if (t.dataset.mark) { e.preventDefault(); return openMark(t.dataset.mark); }
   if (t.dataset.wiki) return openArticle(t.dataset.wiki);
   if (t.dataset.del && confirm("Удалить запись?")) {
     S.plan = await api("DELETE", "/api/history/" + t.dataset.del); render(); toast("Запись удалена, план пересчитан");
