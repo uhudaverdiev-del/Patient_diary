@@ -28,8 +28,10 @@ SYSTEM_PROMPT = (
     "Ты помощник в сервисе «CheckUp Track». Отвечай по-русски, коротко и понятно для пациента. "
     "Используй ТОЛЬКО факты из пронумерованных источников ниже. После каждого факта ставь номер "
     "источника в квадратных скобках, например: «Маммографию проходят раз в 2 года [2].» Ответ без таких "
-    "ссылок не будет показан пациенту. Если ответа в источниках нет, честно скажи, что "
-    "не знаешь, и посоветуй обратиться к терапевту. Не ставь диагнозы и не назначай лечение."
+    "ссылок не будет показан пациенту. Источник [1] — личный план пациента: на вопросы «что мне пройти», "
+    "«что просрочено», «когда» отвечай по нему. Если в источниках есть хотя бы часть ответа, дай её со ссылками. "
+    "Только если в источниках совсем ничего нет по вопросу, напиши одно слово: НЕТ_В_ИСТОЧНИКАХ. "
+    "Не ставь диагнозы и не назначай лечение."
 )
 
 
@@ -345,6 +347,17 @@ def normalize_citations(text):
     return re.sub(r"(?<=[^\s\d])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)", lambda m: f"[{m.group(1).translate(SUPERSCRIPT)}]", text)
 
 
+NOT_FOUND = "НЕТ_В_ИСТОЧНИКАХ"
+
+
+def is_refusal(text):
+    """Модель честно не нашла ответа: «не знаю», «нет в источниках», «не могу ответить» без единой ссылки."""
+    if re.search(r"\[\d+\]", text):
+        return False
+    low = text.lower().replace("ё", "е")
+    return NOT_FOUND.lower() in low or bool(re.search(r"\bне знаю\b|не могу (ответить|помочь)|нет (информации|данных|ответа)", low))
+
+
 def citations_ok(text, n_sources):
     cited = [int(n) for n in re.findall(r"\[(\d+)\]", text)]
     return bool(cited) and all(1 <= n <= n_sources for n in cited)
@@ -391,6 +404,9 @@ class Assistant:
             reason = explain_error(e)
             self._log(user, None, f"error: {e}; {reason}")
             return dict(fallback, mode="local", note=f"YandexGPT недоступен: {reason}. Показан локальный ответ.")
+        if is_refusal(text):
+            self._log(user, text, "refused: no answer in sources")
+            return dict(fallback, mode="local", note="YandexGPT не нашёл ответа в источниках, показан ответ дневника.")
         if not citations_ok(text, len(sources)):
             self._log(user, text, "rejected: no valid citations")
             return dict(fallback, mode="local", note="Ответ модели без ссылок на источники отклонён, показан локальный ответ.")

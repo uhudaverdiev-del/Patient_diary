@@ -132,6 +132,15 @@ class LlmModeTest(unittest.TestCase):
         self.assertEqual(normalize_citations("а [1–3]"), "а [1][2][3]")
         self.assertEqual(normalize_citations("в [2024] году"), "в [2024] году")
 
+    def test_refusal_is_not_error(self):
+        for reply in ("Не знаю. Рекомендую обратиться к терапевту.", "НЕТ_В_ИСТОЧНИКАХ", "К сожалению, не могу ответить на этот вопрос."):
+            r = self.make(reply).ask("Что пройти в этом году?", self.plan)
+            self.assertEqual(r["mode"], "local", reply)
+            self.assertIn("не нашёл ответа", r["note"])
+            self.assertNotIn("НЕТ_В_ИСТОЧНИКАХ", r["answer"])
+        r = self.make("Не знаю точно, но маммография положена раз в 2 года [1].").ask("Что пройти в этом году?", self.plan)
+        self.assertEqual(r["mode"], "yandexgpt")
+
     def test_citations_check(self):
         self.assertTrue(citations_ok("а [1] б [2]", 2))
         self.assertFalse(citations_ok("а [3]", 2))
