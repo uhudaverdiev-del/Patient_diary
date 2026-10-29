@@ -1,6 +1,9 @@
+import io
 import json
+import ssl
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 
 from diary.assistant import Assistant, build_context, citations_ok, env_report, find_env_file, load_env, local_answer
@@ -85,6 +88,31 @@ class LlmModeTest(unittest.TestCase):
         r = self.make(OSError("нет сети")).ask("Что пройти в этом году?", self.plan)
         self.assertEqual(r["mode"], "local")
         self.assertTrue(self.log.exists())
+
+    def http_error(self, code, body):
+        return urllib.error.HTTPError("https://llm.api.cloud.yandex.net", code, "err", {}, io.BytesIO(body.encode()))
+
+    def test_error_reason_shown(self):
+        cases = [
+            (self.http_error(401, '{"error": {"message": "Unknown api key"}}'), "YANDEX_API_KEY", "Unknown api key"),
+            (self.http_error(403, '{"message": "Permission denied"}'), "ai.languageModels.user", "Permission denied"),
+            (self.http_error(400, 'не json'), "YANDEX_FOLDER_ID", "код 400"),
+            (urllib.error.URLError(ssl.SSLCertVerificationError("CERTIFICATE_VERIFY_FAILED")), "Install Certificates", ""),
+            (urllib.error.URLError(TimeoutError("timed out")), "нет связи", ""),
+        ]
+        for error, hint, detail in cases:
+            r = self.make(error).ask("Что пройти в этом году?", self.plan)
+            self.assertEqual(r["mode"], "local")
+            self.assertIn(hint, r["note"])
+            self.assertIn(detail, r["note"])
+
+    def test_key_not_in_error_note(self):
+        def llm(system, user):
+            raise self.http_error(401, '{"error": {"message": "Unknown api key"}}')
+        env = {"YANDEX_API_KEY": "AQVN-secret-key", "YANDEX_FOLDER_ID": "b1gfolder"}
+        r = Assistant(self.wiki, env=env, llm=llm, log_path=self.log).ask("Что пройти в этом году?", self.plan)
+        self.assertNotIn("AQVN-secret-key", r["note"])
+        self.assertNotIn("AQVN-secret-key", self.log.read_text(encoding="utf-8"))
 
     def test_no_personal_data_sent(self):
         self.make("Ок [1].").ask("Что пройти в этом году?", self.plan)

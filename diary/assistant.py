@@ -13,6 +13,7 @@
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 from pathlib import Path
@@ -296,6 +297,34 @@ def ask_yandex(system, user, env, timeout=30):
     return data["result"]["alternatives"][0]["message"]["text"]
 
 
+def explain_error(e):
+    """Почему YandexGPT не ответил, простыми словами. Ключ в текст не попадает: его нет ни в ответе, ни в ошибке."""
+    if isinstance(e, urllib.error.HTTPError):
+        detail = ""
+        try:
+            body = json.loads(e.read().decode("utf-8", "replace"))
+            err = body.get("error", body) if isinstance(body, dict) else {}
+            detail = str(err.get("message", "") if isinstance(err, dict) else err)[:200]
+        except Exception:
+            pass
+        hints = {
+            400: "Яндекс не принял запрос: проверьте YANDEX_FOLDER_ID (идентификатор каталога вида b1g…, а не его название)",
+            401: "Яндекс не принял ключ: проверьте YANDEX_API_KEY (нужен API-ключ сервисного аккаунта, без пробелов и кавычек)",
+            403: "нет доступа: дайте сервисному аккаунту роль ai.languageModels.user на этот каталог и проверьте, что в облаке подключён платёжный аккаунт",
+            404: "модель не найдена: проверьте YANDEX_FOLDER_ID и YANDEX_MODEL",
+            429: "превышен лимит запросов к Яндексу, попробуйте через минуту",
+        }
+        hint = hints.get(e.code, "ошибка на стороне Яндекса, попробуйте позже" if e.code >= 500 else "Яндекс вернул ошибку")
+        return f"{hint} (код {e.code}{': ' + detail if detail else ''})"
+    text = str(getattr(e, "reason", "") or e)
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        return ("Python не может проверить сертификат сайта Яндекса. На Mac откройте папку «Программы → Python 3» "
+                "и дважды щёлкните «Install Certificates.command», затем перезапустите дневник")
+    if isinstance(e, (TimeoutError, OSError)) or "timed out" in text:
+        return f"нет связи с Яндексом: проверьте интернет, VPN или антивирус ({text[:120]})"
+    return f"ответ Яндекса не удалось разобрать ({type(e).__name__})"
+
+
 def citations_ok(text, n_sources):
     cited = [int(n) for n in re.findall(r"\[(\d+)\]", text)]
     return bool(cited) and all(1 <= n <= n_sources for n in cited)
@@ -339,8 +368,9 @@ class Assistant:
         try:
             text = self.llm(SYSTEM_PROMPT, user).strip()
         except Exception as e:  # сеть, ключ, квота — показываем локальный ответ
-            self._log(user, None, f"error: {e}")
-            return dict(fallback, mode="local", note="YandexGPT недоступен, показан локальный ответ.")
+            reason = explain_error(e)
+            self._log(user, None, f"error: {e}; {reason}")
+            return dict(fallback, mode="local", note=f"YandexGPT недоступен: {reason}. Показан локальный ответ.")
         if not citations_ok(text, len(sources)):
             self._log(user, text, "rejected: no valid citations")
             return dict(fallback, mode="local", note="Ответ модели без ссылок на источники отклонён, показан локальный ответ.")
