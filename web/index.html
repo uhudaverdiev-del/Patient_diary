@@ -138,6 +138,11 @@
   .row-btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; }
+  .news { margin-top: 16px; }
+  .news-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  .news h2 { margin: 0; }
+  .news ul { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 12px; }
+  .news li { display: grid; gap: 2px; }
   .stack { display: grid; gap: 12px; }
   .banner { border-radius: var(--r); padding: 14px 16px; margin: 14px 0; background: var(--soon-soft); color: var(--ink); border-left: 4px solid var(--soon); }
   .banner.block { background: var(--overdue-soft); border-left-color: var(--overdue); }
@@ -428,7 +433,7 @@
     <div id="demoBanner"></div>
     <main id="view" tabindex="-1"></main>
     <footer>
-      <p>План строится по приказам Минздрава России от 27.04.2021 № 404н (обследования) и от 06.12.2021 № 1122н (прививки). Сервис не заменяет консультацию врача.
+      <p>План строится по приказам Минздрава России от 27.04.2021 № 404н (обследования) и от 06.12.2021 № 1122н (прививки), а также по Программе госгарантий на 2026 год (репродуктивное здоровье). Сервис не заменяет консультацию врача.
         <a href="/privacy" target="_blank" rel="noopener">Политика обработки персональных данных</a>.</p>
     </footer>
   </div>
@@ -1028,6 +1033,7 @@ const VIEWS = {
     return `<h1>Справка</h1>
       <p class="lead">Понятные статьи об ОМС, диспансеризации и обследованиях. У каждой есть ссылки на официальные источники.</p>
       <input id="wikiSearch" class="search" type="search" placeholder="Поиск: например, выходной для диспансеризации" aria-label="Поиск по справке" value="${esc(S.wikiQuery || "")}">
+      ${S.wikiQuery ? "" : newsHtml()}
       ${(S.wikiList || []).length ? Object.entries(groups).filter(([, list]) => list.length).map(([cat, list]) => `<h2>${esc(cat)}</h2>
         <div class="wiki-grid">${list.map((a) => `<a href="#" class="card wiki-card" data-article="${esc(a.slug)}"><b>${esc(a.title)}</b><span>${esc(a.summary)}</span></a>`).join("")}</div>`).join("")
         : `<div class="card muted" style="margin-top:16px">Ничего не найдено. Попробуйте другие слова.</div>`}`;
@@ -1349,6 +1355,24 @@ async function openArticle(slug) {
   S.tab = "wiki"; render(); window.scrollTo(0, 0);
 }
 
+// Новости Минздрава на темы пациента. Грузим в фоне: без интернета сервер отдаёт сохранённую подборку.
+async function loadNews() {
+  try { S.news = await api("GET", "/api/news"); } catch (e) { S.news = { items: [] }; }
+  if (S.tab === "wiki" && !S.article) render();
+}
+
+function newsHtml() {
+  const n = S.news;
+  if (!n || !n.items.length) return "";
+  const note = n.live ? `Обновлено ${fmt(n.updated)}` : `Нет связи с сайтом, показана подборка от ${fmt(n.updated)}`;
+  return `<section class="card news" aria-labelledby="newsTitle">
+      <div class="news-head"><h2 id="newsTitle">Новости здоровья</h2><span class="muted small">${esc(n.source.name)} · ${esc(note)}</span></div>
+      <ul>${n.items.slice(0, 4).map((i) => `<li><span class="muted small">${fmt(i.date)}</span>
+        <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a></li>`).join("")}</ul>
+      <a class="small" href="${esc(n.source.url)}" target="_blank" rel="noopener">Все новости на сайте Минздрава</a>
+    </section>`;
+}
+
 async function loadWikiList(q) {
   S.wikiQuery = q || "";
   S.wikiList = await api("GET", "/api/wiki" + (q ? "?q=" + encodeURIComponent(q) : ""));
@@ -1594,6 +1618,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => S.pl
   try { S.risen = sessionStorage.getItem("risen") === "1"; } catch (e) {}
   let info;
   [S.tests, S.demos, S.plan, , info, S.consent] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant"), api("GET", "/api/consent")]);
+  loadNews();
   S.llm = info.llm_enabled;
   S.llmStatus = info.status || [];
   render();
