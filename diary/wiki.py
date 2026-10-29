@@ -38,15 +38,41 @@ def load_wiki(wiki_dir=WIKI_DIR):
     return articles
 
 
+TOKEN = re.compile(r"[^\W\d_]+|\d+")
+
+
+# Как люди пишут в поиске → как написано в статьях.
+SYNONYMS = {"ковид": "covid", "коронавирус": "covid"}
+
+
+def _tokens(text):
+    """Слова и числа отдельно: «COVID-19» и «covid19» дают «covid» и «19»."""
+    return TOKEN.findall(text.lower().replace("ё", "е"))
+
+
+def _term_hit(term, text):
+    """Есть ли слово запроса в тексте (text — токены через пробел, с пробелом в начале и в конце).
+    Число ищем целиком: «19» не находится в «1985». Слово — по основе с начала слова, чтобы «Казани»
+    не находилось внутри «показаниям»; у коротких слов основа 4 буквы, чтобы «кровь» нашла «крови»."""
+    if term.isdigit():
+        return f" {term} " in text
+    return f" {term[:5] if len(term) > 5 else term[:4]}" in text
+
+
 def search(articles, query, min_score=1):
-    """Простой поиск по словам: совпадение в заголовке или кратком описании весит 3, в тексте — 1."""
-    words = [w for w in re.findall(r"\w+", query.lower()) if len(w) > 2]
+    """Поиск по словам и числам: совпадение в заголовке или кратком описании весит 3, в тексте — 1.
+    Если запрос целиком есть в заголовке или описании, статья поднимается наверх."""
+    terms = [SYNONYMS.get(t, t) for t in _tokens(query) if len(t) > 2 or t.isdigit()]
+    phrase = " ".join(_tokens(query))
     scored = []
     for a in articles.values():
-        # сравниваем с началами слов: иначе «Казани» находится внутри слова «показаниям»
-        title = " " + " ".join(re.findall(r"\w+", (a["title"] + " " + a["summary"]).lower()))
-        body = " " + " ".join(re.findall(r"\w+", a["body"].lower()))
-        score = sum(3 * ((" " + w[:5]) in title) + ((" " + w[:5]) in body) for w in words)
+        title = " " + " ".join(_tokens(a["title"] + " " + a["summary"])) + " "
+        body = " " + " ".join(_tokens(a["body"])) + " "
+        score = sum(3 * _term_hit(t, title) + _term_hit(t, body) for t in terms)
+        if score and len(terms) > 1 and all(_term_hit(t, title) or _term_hit(t, body) for t in terms):
+            score += 2  # нашлись все слова запроса
+        if phrase and len(phrase) > 2 and f" {phrase}" in title:
+            score += 10
         if score >= min_score:
             scored.append((score, a["slug"]))
     scored.sort(key=lambda x: (-x[0], x[1]))

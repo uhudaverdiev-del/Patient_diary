@@ -44,6 +44,24 @@ class WikiTest(unittest.TestCase):
         self.assertEqual(search(self.wiki, "выходной на работе для диспансеризации")[0]["slug"], "how_to_pass")
         self.assertEqual(search(self.wiki, "zzz"), [])
 
+    def test_search_by_numbers(self):
+        for q in ("19", "covid19", "COVID-19", "ковид", "ковид 19"):
+            with self.subTest(q=q):
+                self.assertEqual(search(self.wiki, q)[0]["slug"], "deep_dispanserization")
+        # число ищется целиком: «19» не находится внутри «1985», и наоборот
+        self.assertEqual(search(self.wiki, "1985"), [])
+
+    def test_search_by_description(self):
+        for slug in ("colorectal_screening", "deep_dispanserization", "dispanserization"):
+            with self.subTest(slug=slug):
+                summary = self.wiki[slug]["summary"]
+                self.assertEqual(search(self.wiki, summary)[0]["slug"], slug)
+        self.assertEqual(search(self.wiki, "с 65 до 75")[0]["slug"], "colorectal_screening")
+
+    def test_short_word_forms(self):
+        self.assertIn("colorectal_screening", [a["slug"] for a in search(self.wiki, "крови")])
+        self.assertEqual(search(self.wiki, "Казани"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
