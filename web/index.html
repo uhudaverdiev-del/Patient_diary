@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Дневник здоровья</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <script>
   // Тема и крупный шрифт ставим до отрисовки, чтобы страница не мигала.
   try {
@@ -99,7 +101,7 @@
   .side { position: fixed; inset: 0 auto 0 0; width: var(--side); padding: 22px 16px; display: flex; flex-direction: column; gap: 4px;
     background: var(--surface); border-right: 1px solid var(--line); z-index: 10; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 18px; font-weight: 700; font-size: 1.06rem; color: var(--ink); text-decoration: none; }
-  .brand .sun, .brand .sun svg { width: 32px; height: 32px; flex: none; }
+  .brand .logo { width: 32px; height: 32px; flex: none; border-radius: 8px; }
   .nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 12px; border: 0; border-radius: var(--r);
     background: none; color: var(--muted); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
   .nav-btn svg { width: 22px; height: 22px; flex: none; }
@@ -409,7 +411,7 @@
 <body>
 <div class="app">
   <aside class="side" aria-label="Разделы">
-    <a class="brand" href="#" data-tab="home"><span id="brandSun"></span>Дневник здоровья</a>
+    <a class="brand" href="#" data-tab="home"><img class="logo" src="/icon.svg" alt="" width="32" height="32">Дневник здоровья</a>
     <nav class="stack" style="gap:4px" id="sideNav"></nav>
     <button class="nav-btn ai-btn" data-ai><span class="avatar-slot"></span><span class="wordmark"><span class="a">AI</span>bert</span></button>
     <button class="side-sun" id="sideSun" data-tab="home" hidden></button>
@@ -420,7 +422,7 @@
 
   <div class="wrap">
     <div class="topbar">
-      <a class="brand" href="#" data-tab="home"><span id="brandSunM"></span>Дневник здоровья</a>
+      <a class="brand" href="#" data-tab="home"><img class="logo" src="/icon.svg" alt="" width="32" height="32">Дневник здоровья</a>
       <button class="me-btn" data-tab="profile" id="topMe"></button>
     </div>
     <div id="demoBanner"></div>
@@ -1150,9 +1152,6 @@ function chrome() {
   const me = `<span class="initial">${esc(name[0])}</span><span>${esc(name)}</span>`;
   $("#sideMe").innerHTML = me; $("#topMe").innerHTML = me;
   $("#sideMe").toggleAttribute("aria-current", S.tab === "profile");
-  const logo = sunSvg({ total: 8, lit: 8, rays: Array.from({ length: 8 }, (_, i) => ({ id: "l" + i, lit: true })) });
-  $("#brandSun").innerHTML = `<span class="sun">${logo}</span>`;
-  $("#brandSunM").innerHTML = $("#brandSun").innerHTML;
   const ss = $("#sideSun");
   ss.hidden = !(plan.sun && plan.ready && !isEmpty(plan)) || S.tab === "home";
   if (!ss.hidden) ss.innerHTML = `<span class="sun">${sunSvg(plan.sun)}</span><span><b>${plan.sun.lit} из ${plan.sun.total}</b>${rayWord(plan.sun.total)} зажжено</span>`;
