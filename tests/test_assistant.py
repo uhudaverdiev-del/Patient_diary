@@ -6,7 +6,7 @@ import unittest
 import urllib.error
 from pathlib import Path
 
-from diary.assistant import Assistant, build_context, citations_ok, env_report, find_env_file, load_env, local_answer
+from diary.assistant import Assistant, build_context, citations_ok, normalize_citations, env_report, find_env_file, load_env, local_answer
 from diary.engine import build_plan
 from diary.wiki import load_wiki
 
@@ -123,6 +123,23 @@ class LlmModeTest(unittest.TestCase):
     def test_without_keys_local(self):
         r = Assistant(self.wiki, env={}, log_path=self.log).ask("Что пройти?", self.plan)
         self.assertEqual(r["mode"], "local")
+
+    def test_citation_variants_accepted(self):
+        for reply in ("Маммография раз в 2 года [1, 2].", "Маммография раз в 2 года [Источник 2].",
+                      "Маммография раз в 2 года (источник 1).", "Маммография раз в 2 года¹."):
+            r = self.make(reply).ask("Что пройти в этом году?", self.plan)
+            self.assertEqual(r["mode"], "yandexgpt", reply)
+        self.assertEqual(normalize_citations("а [1–3]"), "а [1][2][3]")
+        self.assertEqual(normalize_citations("в [2024] году"), "в [2024] году")
+
+    def test_refusal_is_not_error(self):
+        for reply in ("Не знаю. Рекомендую обратиться к терапевту.", "НЕТ_В_ИСТОЧНИКАХ", "К сожалению, не могу ответить на этот вопрос."):
+            r = self.make(reply).ask("Что пройти в этом году?", self.plan)
+            self.assertEqual(r["mode"], "local", reply)
+            self.assertIn("не нашёл ответа", r["note"])
+            self.assertNotIn("НЕТ_В_ИСТОЧНИКАХ", r["answer"])
+        r = self.make("Не знаю точно, но маммография положена раз в 2 года [1].").ask("Что пройти в этом году?", self.plan)
+        self.assertEqual(r["mode"], "yandexgpt")
 
     def test_citations_check(self):
         self.assertTrue(citations_ok("а [1] б [2]", 2))

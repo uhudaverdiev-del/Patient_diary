@@ -27,8 +27,11 @@ YANDEX_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 SYSTEM_PROMPT = (
     "Ты помощник в сервисе «CheckUp Track». Отвечай по-русски, коротко и понятно для пациента. "
     "Используй ТОЛЬКО факты из пронумерованных источников ниже. После каждого факта ставь номер "
-    "источника в квадратных скобках, например [2]. Если ответа в источниках нет, честно скажи, что "
-    "не знаешь, и посоветуй обратиться к терапевту. Не ставь диагнозы и не назначай лечение."
+    "источника в квадратных скобках, например: «Маммографию проходят раз в 2 года [2].» Ответ без таких "
+    "ссылок не будет показан пациенту. Источник [1] — личный план пациента: на вопросы «что мне пройти», "
+    "«что просрочено», «когда» отвечай по нему. Если в источниках есть хотя бы часть ответа, дай её со ссылками. "
+    "Только если в источниках совсем ничего нет по вопросу, напиши одно слово: НЕТ_В_ИСТОЧНИКАХ. "
+    "Не ставь диагнозы и не назначай лечение."
 )
 
 
@@ -325,6 +328,36 @@ def explain_error(e):
     return f"ответ Яндекса не удалось разобрать ({type(e).__name__})"
 
 
+SUPERSCRIPT = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+
+
+def normalize_citations(text):
+    """Приводит ссылки модели к виду [1][2]: YandexGPT пишет и [1, 2], и [1–3], и [источник 1], и ¹."""
+    def numbers(inner):
+        found = []
+        for a, b in re.findall(r"(\d+)\s*(?:[-–—]\s*(\d+))?", inner):
+            lo, hi = int(a), int(b or a)
+            found.extend(range(lo, hi + 1) if 0 < hi - lo < 10 else [lo])
+        return "".join(f"[{n}]" for n in found)
+
+    text = re.sub(r"\[\s*(?:источник[и]?\s*)?№?\s*(\d+(?:\s*[,;–—-]\s*№?\s*\d+)*)\s*\]",
+                  lambda m: numbers(m.group(1)), text, flags=re.IGNORECASE)
+    text = re.sub(r"\(\s*источник[и]?\s*№?\s*(\d+(?:\s*[,;–—-]\s*\d+)*)\s*\)",
+                  lambda m: numbers(m.group(1)), text, flags=re.IGNORECASE)
+    return re.sub(r"(?<=[^\s\d])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)", lambda m: f"[{m.group(1).translate(SUPERSCRIPT)}]", text)
+
+
+NOT_FOUND = "НЕТ_В_ИСТОЧНИКАХ"
+
+
+def is_refusal(text):
+    """Модель честно не нашла ответа: «не знаю», «нет в источниках», «не могу ответить» без единой ссылки."""
+    if re.search(r"\[\d+\]", text):
+        return False
+    low = text.lower().replace("ё", "е")
+    return NOT_FOUND.lower() in low or bool(re.search(r"\bне знаю\b|не могу (ответить|помочь)|нет (информации|данных|ответа)", low))
+
+
 def citations_ok(text, n_sources):
     cited = [int(n) for n in re.findall(r"\[(\d+)\]", text)]
     return bool(cited) and all(1 <= n <= n_sources for n in cited)
@@ -366,11 +399,14 @@ class Assistant:
         context, sources = build_context(safe_question, plan, self.wiki)
         user = f"Источники:\n{context}\n\nВопрос пациента: {safe_question}"
         try:
-            text = self.llm(SYSTEM_PROMPT, user).strip()
+            text = normalize_citations(self.llm(SYSTEM_PROMPT, user).strip())
         except Exception as e:  # сеть, ключ, квота — показываем локальный ответ
             reason = explain_error(e)
             self._log(user, None, f"error: {e}; {reason}")
             return dict(fallback, mode="local", note=f"YandexGPT недоступен: {reason}. Показан локальный ответ.")
+        if is_refusal(text):
+            self._log(user, text, "refused: no answer in sources")
+            return dict(fallback, mode="local", note="YandexGPT не нашёл ответа в источниках, показан ответ дневника.")
         if not citations_ok(text, len(sources)):
             self._log(user, text, "rejected: no valid citations")
             return dict(fallback, mode="local", note="Ответ модели без ссылок на источники отклонён, показан локальный ответ.")
