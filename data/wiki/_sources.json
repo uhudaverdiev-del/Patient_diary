@@ -13,5 +13,11 @@
   "1122n": {"title": "Приказ Минздрава России от 06.12.2021 № 1122н, приложение № 1: национальный календарь профилактических прививок", "url": "https://base.garant.ru/403258640/53f89421bbdaf741eb2d1ecc4ddb4c33/"},
   "168n": {"title": "Приказ Минздрава России от 15.03.2022 № 168н «Об утверждении порядка проведения диспансерного наблюдения за взрослыми»", "url": "https://www.kontur-extern.ru/info/normativ/document/1/468441-prikaz-minzdrava-rf-ot-15-03-2022-n-168n"},
   "gosuslugi_deep": {"title": "Госуслуги: что включает углублённая диспансеризация после COVID-19", "url": "https://www.gosuslugi.ru/help/faq/medical_examination/101445"},
-  "repro_mr": {"title": "Методические рекомендации Минздрава России по диспансеризации мужчин и женщин репродуктивного возраста с целью оценки репродуктивного здоровья (27.02.2026)", "url": "https://www.garant.ru/products/ipo/prime/doc/413725546/"}
+  "repro_mr": {"title": "Методические рекомендации Минздрава России по диспансеризации мужчин и женщин репродуктивного возраста с целью оценки репродуктивного здоровья (27.02.2026)", "url": "https://www.garant.ru/products/ipo/prime/doc/413725546/"},
+  "who_hypertension": {"title": "ВОЗ. Информационный бюллетень «Гипертония» (25.09.2025)", "url": "https://www.who.int/ru/news-room/fact-sheets/detail/hypertension"},
+  "who_diabetes": {"title": "ВОЗ. Информационный бюллетень «Диабет» (14.11.2024)", "url": "https://www.who.int/ru/news-room/fact-sheets/detail/diabetes"},
+  "who_tobacco": {"title": "ВОЗ. Информационный бюллетень «Табак и никотин»", "url": "https://www.who.int/ru/news-room/fact-sheets/detail/tobacco"},
+  "quitline": {"title": "Консультативный телефонный центр помощи в отказе от потребления табака Минздрава России (СПб НИИ фтизиопульмонологии)", "url": "https://spbniif.ru/klinicheskie-podrazdeleniya/konsultativnyy-telefonnyy-tsentr-pomoshchi-v-otkaze-ot-potrebleniya-tabaka-.php"},
+  "who_activity": {"title": "ВОЗ. Информационный бюллетень «Физическая активность» (26.06.2024)", "url": "https://www.who.int/ru/news-room/fact-sheets/detail/physical-activity"},
+  "who_diet": {"title": "ВОЗ. Информационный бюллетень «Здоровое питание»", "url": "https://www.who.int/ru/news-room/fact-sheets/detail/healthy-diet"}
 }
