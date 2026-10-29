@@ -240,6 +240,24 @@ def local_answer(question, plan, wiki):
             "sources": [], "suggest": similar_questions(question)}
 
 
+MAX_PARTS = 5
+
+
+def split_questions(text):
+    """Делит сообщение на отдельные вопросы: по знаку «?» и по переносу строки.
+    Совсем короткие куски вроде «А мне?» приклеиваем к соседнему, чтобы не терять смысл."""
+    pieces = [p.strip() for p in re.split(r"(?<=\?)(?!\?)|\n+", text) if p and p.strip()]
+    parts = []
+    for piece in pieces:
+        if parts and (len(piece) < 9 or len(parts[-1]) < 9):
+            parts[-1] = f"{parts[-1]} {piece}"
+        else:
+            parts.append(piece)
+    if len(parts) > MAX_PARTS:
+        parts = parts[:MAX_PARTS - 1] + [" ".join(parts[MAX_PARTS - 1:])]
+    return parts or [text]
+
+
 def build_context(question, plan, wiki):
     """Пронумерованные источники для модели. Без имени и даты рождения."""
     sources, blocks = [], []
@@ -303,6 +321,13 @@ class Assistant:
         question = (question or "").strip()[:500]
         if not question:
             return {"answer": "Задайте вопрос, например: «Что мне нужно пройти в этом году?»", "sources": [], "mode": "local"}
+        parts = split_questions(question)
+        if len(parts) > 1:
+            # Несколько вопросов в одном сообщении: отвечаем на каждый отдельно, со своими источниками.
+            return {"parts": [dict(self._ask_one(q, plan), question=q) for q in parts]}
+        return self._ask_one(question, plan)
+
+    def _ask_one(self, question, plan):
         fallback = local_answer(question, plan, self.wiki)
         # На частые вопросы отвечаем проверенным текстом и без нейросети: так ответ не зависит от сети и не «плывёт».
         if not self.llm_enabled or not plan.get("ready") or faq_answer(question, self.wiki):

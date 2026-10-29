@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
 MAX_BODY = 15 * 1024 * 1024
 OLDEST_RECORD = date(1900, 1, 1)
+MAX_AGE = 120
 # Дневник работает только на этом компьютере: другие адреса в заголовке Host означают,
 # что страницу открыли через чужой сайт (подмена адреса, DNS rebinding).
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -110,6 +111,20 @@ class App:
 
     def known_tests(self):
         return {t["test"] for t in test_catalog(self.rules)}
+
+    def check_birth_date(self, value, today=None):
+        """Дата рождения: настоящая дата, не в будущем и не раньше чем MAX_AGE лет назад."""
+        if value in (None, ""):
+            return
+        try:
+            born = date.fromisoformat(str(value))
+        except ValueError:
+            raise ValueError("Укажите дату рождения полностью: день, месяц и год.")
+        limit = parse_date(today or self.today) or date.today()
+        if born > limit:
+            raise ValueError("Дата рождения не может быть позже сегодняшней.")
+        if born.year < limit.year - MAX_AGE:
+            raise ValueError(f"Проверьте год рождения: он не может быть раньше {limit.year - MAX_AGE} года.")
 
     def check_record_date(self, value, today=None):
         """Дата прохождения не может быть позже даты расчёта: иначе план считал бы будущее пройденным."""
@@ -191,6 +206,7 @@ class App:
             if method == "POST" and path == "/api/profile":
                 if not isinstance(body.get("profile", {}), dict):
                     raise ValueError("Неверный формат профиля.")
+                self.check_birth_date(body.get("profile", {}).get("birth_date"), today)
                 self.storage.save_profile(body.get("profile", {}), body.get("name"), consent=body.get("consent") is True)
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/history":

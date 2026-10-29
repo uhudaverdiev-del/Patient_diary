@@ -340,7 +340,8 @@
   @keyframes typing { 0%, 100% { opacity: .3; transform: scaleY(.6); } 50% { opacity: 1; transform: none; } }
   .ai-foot { border-top: 1px solid var(--line); padding: 12px 18px 18px; display: grid; gap: 10px; }
   .ai-foot .chips { max-height: 132px; overflow-y: auto; }
-  .ask { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .ask { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  #askInput { resize: none; max-height: 160px; overflow-y: auto; line-height: 1.4; }
   .ai-privacy { font-size: .76rem; color: var(--muted); }
   .ai-privacy summary { cursor: pointer; }
 
@@ -443,7 +444,7 @@
   <div id="chatLog" aria-live="polite"></div>
   <div class="ai-foot">
     <div class="chips" id="aiChips"></div>
-    <form id="askForm" class="ask"><input id="askInput" placeholder="Ваш вопрос" autocomplete="off" aria-label="Ваш вопрос"><button class="btn" type="submit">Спросить</button></form>
+    <form id="askForm" class="ask"><textarea id="askInput" rows="1" maxlength="500" placeholder="Ваш вопрос" aria-label="Ваш вопрос"></textarea><button class="btn" type="submit">Спросить</button></form>
     <details class="ai-privacy" id="aiPrivacy"></details>
   </div>
 </dialog>
@@ -761,7 +762,7 @@ function mainStep(plan) {
   }
   const next = calendarItems(plan).filter((i) => i.next_due).sort((a, b) => a.next_due.localeCompare(b.next_due))[0];
   return { tag: "Всё сделано", title: "Всё положенное сейчас пройдено",
-    why: next ? `Следующее по сроку: ${next.title}, ${fmt(next.next_due)}. Напомним заранее, если добавите календарь в телефон.` : "Новых сроков пока нет.",
+    why: next ? `Следующее по сроку: ${next.title}, ${fmt(next.next_due)}. Напомним заранее, если добавите сроки в свой календарь.` : "Новых сроков пока нет.",
     primary: `<a class="btn" href="${icsLink()}" download="health-diary.ics">Добавить сроки в календарь</a>`, secondary: "" };
 }
 
@@ -784,7 +785,7 @@ function onboardingHtml() {
   const ob = S.ob, lit = ob.step - 1;
   const mini = { total: 4, lit, all_done: false, rays: [0, 1, 2, 3].map((i) => ({ id: "ob" + i, lit: i < lit })) };
   const body = ob.step === 1 ? `<form id="obForm1"><div class="field"><label for="wBirth">Когда вы родились?</label>
-        <input type="date" id="wBirth" required value="${esc(ob.birth || "")}" max="${esc(S.plan.today)}"></div>
+        <input type="date" id="wBirth" required value="${esc(ob.birth || "")}" ${birthBounds()}></div>
         <button class="btn" type="submit" style="width:100%">Дальше</button></form>`
     : ob.step === 2 ? `<span class="label">Ваш пол</span><p class="muted small" style="margin-top:2px">От него зависит, какие обследования положены.</p>
         <div class="big-choice"><button class="btn ghost" data-sex="female">Женский</button><button class="btn ghost" data-sex="male">Мужской</button></div>
@@ -801,6 +802,12 @@ function onboardingHtml() {
     <div class="card"><div class="onb-step">Шаг ${ob.step} из 4</div><div style="margin-top:10px">${body}</div></div>
     <p class="muted small">Данные хранятся только на этом компьютере. <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
   </div>`;
+}
+
+function birthBounds() {
+  // Не позже сегодняшнего дня и не раньше чем 120 лет назад: сервер проверяет то же самое.
+  const today = S.plan.today, minYear = Number(today.slice(0, 4)) - 120;
+  return `min="${minYear}-01-01" max="${esc(today)}"`;
 }
 
 function lastCheckHtml() {
@@ -970,7 +977,7 @@ const VIEWS = {
       <h2>Дальше по срокам</h2>
       <div class="card next">${nextRows(plan, step.item && step.item.test) || `<p class="muted" style="padding:10px 14px">Больше ничего не запланировано.</p>`}</div>
       <div class="tools" style="margin-top:12px">
-        <a class="card tool" href="${icsLink()}" download="health-diary.ics"><b>Календарь в телефон</b><span class="muted small">Все сроки с напоминанием за неделю и утром в день обследования.</span></a>
+        <a class="card tool" href="${icsLink()}" download="health-diary.ics"><b>Сроки в календарь</b><span class="muted small">Скачается файл: он откроется в календаре компьютера (Outlook, Календарь) или телефона. Напомним за неделю и утром в день обследования.</span></a>
         <a class="card tool" href="${reportLink()}" target="_blank" rel="noopener"><b>Памятка врачу</b><span class="muted small">Одна страница для терапевта: можно распечатать или сохранить в PDF.</span></a>
       </div>
       <div class="card ask-card" style="margin-top:12px">
@@ -1032,7 +1039,7 @@ const VIEWS = {
       ${problemsHtml(plan)}
       <form class="card narrow" id="profileForm" style="margin-top:20px">
         <div class="field"><label for="pName">Имя</label><input id="pName" maxlength="100" value="${esc(plan.name)}"></div>
-        <div class="field"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}"></div>
+        <div class="field"><label for="pBirth">Дата рождения *</label><input type="date" id="pBirth" value="${esc(p.birth_date)}" ${birthBounds()}></div>
         <div class="field"><label for="pSex">Пол *</label><select id="pSex">
           <option value="">не указан</option>
           ${Object.entries(SEX).map(([v, t]) => `<option value="${v}" ${p.sex === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
@@ -1042,8 +1049,8 @@ const VIEWS = {
           <div class="muted small">Необязательно. Покажем рядом с кнопкой записи, чтобы не искать телефон.</div>
           <input id="pClinicName" maxlength="100" placeholder="Название, например: Городская поликлиника № 5" value="${esc(p.clinic_name)}" aria-label="Название поликлиники">
           <input id="pClinicAddress" maxlength="100" placeholder="Адрес" value="${esc(p.clinic_address)}" aria-label="Адрес поликлиники">
-          <input id="pClinicPhone" type="tel" maxlength="100" placeholder="Телефон регистратуры" value="${esc(p.clinic_phone)}" aria-label="Телефон регистратуры"></fieldset>
-        <div class="field checks"><span class="label">Перенесённые операции, которые меняют план</span>
+          <input id="pClinicPhone" type="tel" inputmode="tel" maxlength="30" placeholder="Телефон регистратуры, например +7 495 123-45-67" value="${esc(p.clinic_phone)}" aria-label="Телефон регистратуры"></fieldset>
+        <div class="field checks" id="pOps" ${p.sex === "male" ? "hidden" : ""}><span class="label">Перенесённые операции, которые меняют план</span>
           ${Object.entries(CONDITIONS).map(([v, t]) => `<label><input type="checkbox" value="${v}" ${conds.has(v) ? "checked" : ""}> ${t}</label>`).join("")}</div>
         <div class="field checks"><span class="label">Прививки</span>
           <label><input type="checkbox" value="flu_risk" ${conds.has("flu_risk") ? "checked" : ""}> Мне положена ежегодная прививка от гриппа</label>
@@ -1087,7 +1094,7 @@ function calendarHtml(plan) {
   const all = calendarItems(plan);
   const overdue = all.filter((i) => i.status === "overdue" || i.status === "no_data");
   const later = all.filter((i) => i.next_due && key(new Date(i.next_due + "T00:00:00")) >= key(months[0]) + 12);
-  return `<div class="row-btns" style="margin-top:16px"><a class="btn ghost" href="${icsLink()}" download="health-diary.ics">Добавить в календарь телефона</a></div>
+  return `<div class="row-btns" style="margin-top:16px"><a class="btn ghost" href="${icsLink()}" download="health-diary.ics">Добавить сроки в календарь</a></div>
     <div class="cal">
       ${overdue.length ? `<div class="card month"><h3 style="color:var(--overdue)">Пройти при ближайшем визите</h3>${overdue.map(chip).join("")}</div>` : ""}
       ${months.map((m, idx) => {
@@ -1192,7 +1199,7 @@ function chipsFor(ctx) {
 function renderChat() {
   const msgs = S.chat.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>`
     : m.pending ? `<div class="msg bot" aria-label="AIbert думает"><span class="typing"><i></i><i></i><i></i></span></div>`
-    : `<div class="msg bot">${esc(m.answer).replace(/\n/g, "<br>")}
+    : `<div class="msg bot">${m.question ? `<b>${esc(m.question)}</b><br>` : ""}${esc(m.answer).replace(/\n/g, "<br>")}
         ${m.suggest && m.suggest.length ? `<div class="chips" style="margin-top:10px">${m.suggest.map((q) => `<button class="chip-q" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>` : ""}
         ${m.sources && m.sources.length ? `<div class="msg-src">Источники: ${m.sources.map((x, i) => (m.numbered ? `[${i + 1}] ` : "") + (x.wiki
             ? `<a href="#" data-article="${esc(x.wiki)}">${esc(x.title)}</a>`
@@ -1219,16 +1226,25 @@ function openAI(test) {
   $("#askInput").focus();
 }
 
+function growAsk() {
+  // Поле вопроса растёт вместе с текстом, до 160 пикселей, дальше прокрутка.
+  const box = $("#askInput");
+  box.style.height = "auto";
+  box.style.height = Math.min(box.scrollHeight + 2, 160) + "px";
+}
+
 async function ask(question) {
   question = question.trim();
   if (!question) return;
   if (!$("#aiDialog").open) openAI();
   S.chat.push({ role: "user", text: question }, { role: "bot", pending: true });
   $("#askInput").value = "";
+  growAsk();
   renderChat();
   try {
     const r = await api("POST", "/api/ask", { question });
-    S.chat[S.chat.length - 1] = Object.assign({ role: "bot" }, r);
+    const answers = r.parts ? r.parts : [r];
+    S.chat.splice(S.chat.length - 1, 1, ...answers.map((a) => Object.assign({ role: "bot" }, a)));
   } catch (err) {
     S.chat[S.chat.length - 1] = { role: "bot", answer: "Не получилось ответить: " + err.message };
   }
@@ -1484,14 +1500,34 @@ function metricKindChanged() {
 }
 document.addEventListener("change", (e) => {
   if (e.target.id === "mtKind") metricKindChanged();
+  if (e.target.id === "pSex") {
+    // Мастэктомия и удаление матки бывают только у женщин: при мужском поле прячем и снимаем галочки.
+    const male = e.target.value === "male";
+    $("#pOps").hidden = male;
+    if (male) $("#pOps").querySelectorAll("input").forEach((i) => (i.checked = false));
+  }
   if (e.target.id === "bigFont") {
     try { e.target.checked ? localStorage.setItem("bigfont", "1") : localStorage.removeItem("bigfont"); } catch (err) {}
     if (e.target.checked) document.documentElement.dataset.big = "1"; else delete document.documentElement.dataset.big;
   }
 });
 
+// Enter отправляет вопрос AIbert, Shift+Enter переносит строку.
+document.addEventListener("keydown", (e) => {
+  if (e.target.id !== "askInput" || e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  $("#askForm").requestSubmit();
+});
+
 let wikiTimer;
 document.addEventListener("input", (e) => {
+  if (e.target.id === "pClinicPhone") {
+    // Буквы в телефон не пропускаем сразу, при вводе и вставке.
+    const clean = e.target.value.replace(/[^0-9 +()\-]/g, "");
+    if (clean !== e.target.value) e.target.value = clean;
+    return;
+  }
+  if (e.target.id === "askInput") return growAsk();
   if (e.target.id !== "wikiSearch") return;
   clearTimeout(wikiTimer);
   wikiTimer = setTimeout(async () => {
