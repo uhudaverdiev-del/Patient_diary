@@ -21,6 +21,20 @@
 4. Нажмите **Apply** (или **Deploy Blueprint**). Через 2–3 минуты появится адрес вида `https://checkup-track.onrender.com`. Это и есть ссылка для жюри.
 5. После каждого влитого PR Render сам обновит сайт за пару минут.
 
+Если пункта **Blueprint** в меню нет, создайте сервис вручную: **New → Web Service**, репозиторий `Patient_diary`, затем:
+
+| Поле | Что вписать |
+|---|---|
+| Name | `checkup-track` |
+| Branch | `main` |
+| Language | Python 3 |
+| Build Command | `python --version` |
+| Start Command | `python app.py --public` |
+| Instance Type | Free |
+| Environment Variables | `PYTHON_VERSION` = `3.12.7`, `YANDEX_API_KEY` = ключ, `YANDEX_FOLDER_ID` = каталог `b1g…` |
+
+И нажмите **Deploy Web Service**.
+
 ## Что важно знать
 
 - **Сайт «засыпает».** На бесплатном тарифе после 15 минут без посетителей Render выключает сервер. Первое открытие после этого занимает около минуты. Перед защитой откройте ссылку за пару минут, чтобы сайт проснулся.
