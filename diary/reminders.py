@@ -121,7 +121,7 @@ def to_ics(plan, now=None):
     Остальные — отдельными событиями в день срока.
     """
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Patient Diary//RU",
-             "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Дневник здоровья"]
+             "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:CheckUp Track"]
     if plan.get("ready"):
         today = date.fromisoformat(plan["today"])
         stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")

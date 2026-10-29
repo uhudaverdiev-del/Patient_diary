@@ -387,7 +387,7 @@ def make_handler(app):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Дневник здоровья пациента")
+    parser = argparse.ArgumentParser(description="CheckUp Track — дневник здоровья пациента")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--today", help="фиксированная дата расчёта ГГГГ-ММ-ДД (для демонстрации)")
     parser.add_argument("--open", action="store_true", help="сразу открыть сервис в браузере")
@@ -399,7 +399,7 @@ def main():
         print(f"Порт {args.port} занят: возможно, дневник уже запущен в другом окне. "
               f"Откройте http://127.0.0.1:{args.port} или запустите с --port 8001.", flush=True)
         return
-    print(f"Дневник здоровья запущен: http://127.0.0.1:{args.port}  (остановить: Ctrl+C)", flush=True)
+    print(f"CheckUp Track запущен: http://127.0.0.1:{args.port}  (остановить: Ctrl+C)", flush=True)
     for line in app.assistant.status():
         print(line, flush=True)
     if args.open:
