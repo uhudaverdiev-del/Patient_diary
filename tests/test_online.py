@@ -58,6 +58,11 @@ class OnlineTest(unittest.TestCase):
         self.assertIn("Secure", raw)
         self.assertTrue(cookie)
 
+    def test_consent_text_says_data_is_on_server(self):
+        _, data, _, _ = self.request("GET", "/api/consent")
+        self.assertNotIn("на этом компьютере", data["text"])
+        self.assertIn("удаляются через 6 часов", data["text"])
+
     def test_visitors_do_not_see_each_other(self):
         a, b = self.visitor(), self.visitor()
         self.assertNotEqual(a, b)

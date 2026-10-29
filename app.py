@@ -243,7 +243,11 @@ class App:
             if method == "GET" and path == "/api/assistant":
                 return 200, {"llm_enabled": self.assistant.llm_enabled, "status": self.assistant.status()}
             if method == "GET" and path == "/api/consent":
-                return 200, {"version": CONSENT_VERSION, "text": CONSENT_TEXT}
+                text = CONSENT_TEXT
+                if self.online:
+                    text = text.replace("Данные хранятся на этом компьютере.",
+                                        f"Это онлайн-версия для знакомства: данные хранятся на сервере и удаляются через {SESSION_TTL // 3600} часов.")
+                return 200, {"version": CONSENT_VERSION, "text": text}
             if method == "GET" and path == "/api/tests":
                 return 200, test_catalog(self.rules)
             if method == "POST" and path == "/api/profile":

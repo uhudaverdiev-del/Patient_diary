@@ -6,7 +6,9 @@ import unittest
 import urllib.error
 from pathlib import Path
 
-from diary.assistant import Assistant, build_context, citations_ok, normalize_citations, env_report, find_env_file, load_env, local_answer
+from unittest import mock
+
+from diary.assistant import Assistant, ask_yandex, build_context, citations_ok, normalize_citations, env_report, find_env_file, load_env, local_answer
 from diary.engine import build_plan
 from diary.wiki import load_wiki
 
@@ -140,6 +142,24 @@ class LlmModeTest(unittest.TestCase):
             self.assertNotIn("НЕТ_В_ИСТОЧНИКАХ", r["answer"])
         r = self.make("Не знаю точно, но маммография положена раз в 2 года [1].").ask("Что пройти в этом году?", self.plan)
         self.assertEqual(r["mode"], "yandexgpt")
+
+    def test_yandex_does_not_keep_requests(self):
+        sent = {}
+
+        class Resp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+        def fake(req, timeout):
+            sent.update({k.lower(): v for k, v in req.header_items()})
+            return Resp(b'{"result": {"alternatives": [{"message": {"text": "ok"}}]}}')
+
+        with mock.patch("urllib.request.urlopen", fake):
+            self.assertEqual(ask_yandex("s", "u", KEYS), "ok")
+        self.assertEqual(sent.get("x-data-logging-enabled"), "false")
 
     def test_citations_check(self):
         self.assertTrue(citations_ok("а [1] б [2]", 2))

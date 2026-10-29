@@ -294,7 +294,9 @@ def ask_yandex(system, user, env, timeout=30):
         YANDEX_URL, data=json.dumps(body).encode("utf-8"), method="POST",
         headers={"Content-Type": "application/json",
                  "Authorization": f"Api-Key {env['YANDEX_API_KEY']}",
-                 "x-folder-id": env["YANDEX_FOLDER_ID"]})
+                 "x-folder-id": env["YANDEX_FOLDER_ID"],
+                 # Яндекс по умолчанию сохраняет запросы для улучшения моделей; данные о здоровье не оставляем.
+                 "x-data-logging-enabled": "false"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return data["result"]["alternatives"][0]["message"]["text"]
