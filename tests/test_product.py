@@ -109,3 +109,50 @@ class FaqTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FeedbackFixesTest(unittest.TestCase):
+    """Замечания после ручной проверки 29.10.2026."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app = App(storage=Storage(self.tmp.name))
+        self.call("POST", "/api/profile", {"name": "Анна", "consent": True, "profile": PROFILE})
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def call(self, method, path, body=None):
+        return self.app.handle(method, path, TODAY, body or {})
+
+    def test_impossible_birth_dates_are_rejected(self):
+        for born in ("0001-01-01", "1850-05-05", "2030-01-01", "2026-10-25", "1985-02-30"):
+            with self.subTest(born=born):
+                code, data = self.call("POST", "/api/profile", {"profile": dict(PROFILE, birth_date=born)})
+                self.assertEqual(code, 400)
+                self.assertIn("рождения", data["error"])
+        code, _ = self.call("POST", "/api/profile", {"profile": dict(PROFILE, birth_date="1906-01-01")})
+        self.assertEqual(code, 200)
+
+    def test_clinic_phone_without_letters(self):
+        code, data = self.call("POST", "/api/profile", {"profile": dict(PROFILE, clinic_phone="8 800 abc")})
+        self.assertEqual(code, 400)
+        self.assertIn("телефоне", data["error"])
+        code, plan = self.call("POST", "/api/profile", {"profile": dict(PROFILE, clinic_phone="8 (800) 555-35-35")})
+        self.assertEqual(plan["profile"]["clinic_phone"], "8 (800) 555-35-35")
+
+    def test_men_cannot_have_female_operations(self):
+        code, plan = self.call("POST", "/api/profile", {"profile": dict(PROFILE, sex="male",
+                                                                        conditions=["mastectomy", "hysterectomy", "flu_risk"])})
+        self.assertEqual(code, 200)
+        self.assertEqual(plan["profile"]["conditions"], ["flu_risk"])
+
+    def test_several_questions_get_several_answers(self):
+        code, data = self.call("POST", "/api/ask", {"question": "Диспансеризация платная? Как получить выходной на работе?"})
+        self.assertEqual(code, 200)
+        self.assertEqual([p["question"] for p in data["parts"]],
+                         ["Диспансеризация платная?", "Как получить выходной на работе?"])
+        self.assertIn("бесплатно", data["parts"][0]["answer"])
+        self.assertIn("185.1", data["parts"][1]["answer"])
+        _, single = self.call("POST", "/api/ask", {"question": "Зачем маммография? А мне?"})
+        self.assertNotIn("parts", single)

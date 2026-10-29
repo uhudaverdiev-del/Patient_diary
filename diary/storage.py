@@ -26,6 +26,10 @@ CLINIC_FIELDS = ("clinic_name", "clinic_address", "clinic_phone")
 # Направление на второй этап диспансеризации: врач направил / второй этап пройден.
 SECOND_STAGE = ("referred", "done")
 KNOWN_CONDITIONS = ("mastectomy", "hysterectomy", "flu_risk")
+# Операции, которые бывают только у женщин: при мужском поле не сохраняем.
+FEMALE_CONDITIONS = ("mastectomy", "hysterectomy")
+# Телефон: цифры, пробелы, плюс, скобки и дефисы.
+PHONE_RE = re.compile(r"[\d\s+()\-]{5,30}")
 NO_CONSENT = "Сначала дайте согласие на обработку данных о здоровье (раздел «Профиль»)."
 
 
@@ -59,7 +63,10 @@ class Storage:
                 clean[key] = str(value).strip()[:MAX_NAME]
         # Принимаем только известные отметки: всё остальное в профиль не попадает.
         conditions = profile.get("conditions") if isinstance(profile.get("conditions"), list) else []
-        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in conditions]
+        clean["conditions"] = [c for c in KNOWN_CONDITIONS if c in conditions
+                               and not (clean.get("sex") == "male" and c in FEMALE_CONDITIONS)]
+        if clean.get("clinic_phone") and not PHONE_RE.fullmatch(clean["clinic_phone"]):
+            raise ValueError("В телефоне поликлиники могут быть только цифры, пробелы и знаки + ( ) -.")
         state["profile"] = clean
         if name is not None:
             if len(str(name)) > MAX_NAME:
