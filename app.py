@@ -2,21 +2,28 @@
 
 Запуск:  python app.py        затем открыть http://127.0.0.1:8000
          python app.py --port 8080 --today 2026-10-24   (фиксированная дата для демо)
+         python app.py --public     онлайн-версия для жюри: у каждого посетителя свой дневник на 6 часов
 """
 
 import argparse
+import copy
 import json
 import mimetypes
+import os
+import secrets
+import shutil
 import sys
 import threading
+import time
 import traceback
 import webbrowser
 from datetime import date
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from diary.assistant import Assistant
+from diary.assistant import Assistant, local_answer
 from diary.preparation import prep_for
 from diary.privacy import CONSENT_TEXT, CONSENT_VERSION, CONTENT_TYPES, export_archive, policy_html
 from diary.engine import build_plan, describe_rule, load_rules, parse_date
@@ -37,6 +44,14 @@ MAX_AGE = 120
 # Дневник работает только на этом компьютере: другие адреса в заголовке Host означают,
 # что страницу открыли через чужой сайт (подмена адреса, DNS rebinding).
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+# Онлайн-версия: у каждого посетителя свой дневник, который удаляется через SESSION_TTL секунд.
+SESSION_TTL = 6 * 3600
+MAX_SESSIONS = 300
+SESSION_COOKIE = "ct_session"
+# Сколько вопросов AIbert может задать один посетитель онлайн-версии: ключ YandexGPT платный.
+ONLINE_ASK_LIMIT = 30
+# И сколько вопросов в сутки уходит в YandexGPT от всех посетителей вместе: дальше AIbert отвечает без нейросети.
+ONLINE_DAILY_LLM_LIMIT = 500
 # Страницы могут грузить только свои файлы и отправлять данные только на свой адрес.
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; "
@@ -80,13 +95,23 @@ def test_catalog(rules_data):
 
 
 class App:
-    def __init__(self, storage=None, today=None, assistant=None, news=None):
+    def __init__(self, storage=None, today=None, assistant=None, news=None, online=False):
         self.storage = storage or Storage()
         self.today = today
+        self.online = online
+        self.asked = 0
+        self.llm_budget = {"day": None, "used": 0}  # общий для всех посетителей онлайн-версии
         self.rules = load_rules()
         self.wiki = load_wiki()
         self.assistant = assistant or Assistant(self.wiki, log_path=self.storage.user_dir / "llm_log.jsonl")
         self.news = news or News(self.storage.user_dir / "news_cache.json")
+
+    def for_storage(self, storage):
+        """Тот же дневник (правила, справка, AIbert, новости) с отдельными данными посетителя."""
+        clone = copy.copy(self)
+        clone.storage = storage
+        clone.asked = 0
+        return clone
 
     def plan(self, today=None):
         state = self.storage.load()
@@ -196,10 +221,24 @@ class App:
                 return 200, self.news.get()
             if method == "GET" and path.startswith("/api/wiki/"):
                 return 200, self.wiki[path.rsplit("/", 1)[-1]]
+            if method == "GET" and path == "/api/mode":
+                return 200, {"online": self.online, "ttl_hours": SESSION_TTL // 3600}
             if method == "POST" and path == "/api/ask":
                 question = body.get("question", "")
                 if not isinstance(question, str):
                     raise ValueError("Задайте вопрос текстом.")
+                if self.online:
+                    self.asked += 1
+                    if self.asked > ONLINE_ASK_LIMIT:
+                        raise ValueError("В онлайн-версии можно задать AIbert до 30 вопросов. Без ограничений он работает в версии на компьютере.")
+                    budget, day = self.llm_budget, date.today().isoformat()
+                    if budget["day"] != day:
+                        budget.update(day=day, used=0)
+                    budget["used"] += 1
+                    if budget["used"] > ONLINE_DAILY_LLM_LIMIT:
+                        plan = self.plan(today)
+                        return 200, dict(local_answer(question, plan, self.wiki), mode="local",
+                                         note="Лимит вопросов к YandexGPT в онлайн-версии на сегодня исчерпан, показан ответ дневника.")
                 return 200, self.assistant.ask(question, self.plan(today))
             if method == "GET" and path == "/api/assistant":
                 return 200, {"llm_enabled": self.assistant.llm_enabled, "status": self.assistant.status()}
@@ -214,6 +253,8 @@ class App:
                 self.storage.save_profile(body.get("profile", {}), body.get("name"), consent=body.get("consent") is True)
                 return 200, self.plan(today)
             if method == "POST" and path == "/api/history":
+                if self.online:
+                    body.pop("file", None)  # в онлайн-версию файлы не загружаются
                 self.add_records(body, today)
                 return 200, self.plan(today)
             if method == "PUT" and path.startswith("/api/history/"):
@@ -251,17 +292,53 @@ class App:
         return 404, {"error": "Неизвестный адрес."}
 
 
-def make_handler(app):
+class Sessions:
+    """Дневники посетителей онлайн-версии: у каждого браузера своя папка, через SESSION_TTL она удаляется."""
+
+    def __init__(self, app, base_dir, ttl=SESSION_TTL, limit=MAX_SESSIONS, clock=time.time):
+        self.app, self.base_dir, self.ttl, self.limit, self.clock = app, Path(base_dir), ttl, limit, clock
+        self.items = {}  # id -> [App, время последнего запроса]
+        self.lock = threading.Lock()
+        shutil.rmtree(self.base_dir, ignore_errors=True)  # после перезапуска старые дневники не нужны
+
+    def get(self, session_id):
+        """(App, id). Если id неизвестен или устарел, заводится новый дневник с новым id."""
+        now = self.clock()
+        with self.lock:
+            self._expire(now)
+            entry = self.items.get(session_id or "")
+            if entry is None:
+                while len(self.items) >= self.limit:
+                    self._drop(min(self.items, key=lambda k: self.items[k][1]))
+                session_id = secrets.token_hex(16)
+                entry = [self.app.for_storage(Storage(self.base_dir / session_id)), now]
+                self.items[session_id] = entry
+            entry[1] = now
+            return entry[0], session_id
+
+    def _expire(self, now):
+        for key in [k for k, (_, seen) in self.items.items() if now - seen > self.ttl]:
+            self._drop(key)
+
+    def _drop(self, key):
+        self.items.pop(key, None)
+        shutil.rmtree(self.base_dir / key, ignore_errors=True)
+
+
+def make_handler(app, sessions=None):
     # Изменения данных идут по одному, чтобы два одновременных сохранения не затёрли друг друга.
     write_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         timeout = 30  # запрос, который не дослал данные, не держит сервер вечно
+        new_session = None  # id нового дневника онлайн-версии: уходит в cookie этого ответа
 
         def log_message(self, fmt, *args):
             pass
 
         def _host_ok(self):
+            if sessions:  # онлайн-версия открывается по адресу хостинга
+                return True
             port = self.server.server_address[1]
             host = (self.headers.get("Host") or "").strip().lower()
             return host in {f"{h}:{port}" for h in LOCAL_HOSTS} or (port == 80 and host in LOCAL_HOSTS)
@@ -276,6 +353,9 @@ def make_handler(app):
             if (self.headers.get("Sec-Fetch-Site") or "same-origin") not in ("same-origin", "none"):
                 return False
             origin = self.headers.get("Origin")
+            if origin is not None and sessions:
+                host = (self.headers.get("Host") or "").strip().lower()
+                return urlparse(origin.lower()).netloc == host
             if origin is not None:
                 port = self.server.server_address[1]
                 return origin.lower() in {f"http://{h}:{port}" for h in LOCAL_HOSTS}
@@ -296,6 +376,10 @@ def make_handler(app):
                 headers.setdefault("Content-Security-Policy", CSP)
             for key, value in headers.items():
                 self.send_header(key, value)
+            if self.new_session:
+                secure = "; Secure" if self.headers.get("X-Forwarded-Proto") == "https" else ""
+                self.send_header("Set-Cookie", f"{SESSION_COOKIE}={self.new_session}; Path=/; HttpOnly; SameSite=Lax; "
+                                               f"Max-Age={SESSION_TTL}{secure}")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -311,8 +395,25 @@ def make_handler(app):
                 except OSError:
                     pass
 
+        def _session(self):
+            """Дневник этого посетителя: в онлайн-версии по cookie, на компьютере — общий."""
+            self.new_session = None
+            if not sessions:
+                return app
+            cookie = SimpleCookie()
+            try:
+                cookie.load(self.headers.get("Cookie") or "")
+            except CookieError:
+                pass
+            old = cookie[SESSION_COOKIE].value if SESSION_COOKIE in cookie else None
+            current, session_id = sessions.get(old)
+            if session_id != old:
+                self.new_session = session_id
+            return current
+
         def _route_safe(self, method):
             url = urlparse(self.path)
+            app = self._session()
             if not self._host_ok():
                 return self._send(403, {"error": "Дневник открывается только по адресу http://127.0.0.1."})
             if method != "GET" and not self._same_site():
@@ -395,7 +496,18 @@ def main():
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--today", help="фиксированная дата расчёта ГГГГ-ММ-ДД (для демонстрации)")
     parser.add_argument("--open", action="store_true", help="сразу открыть сервис в браузере")
+    parser.add_argument("--public", action="store_true",
+                        help="онлайн-версия для хостинга: открыта всем, у каждого посетителя свой дневник на 6 часов")
     args = parser.parse_args()
+    if args.public:
+        app = App(storage=Storage(ROOT / "data" / "online"), today=args.today, online=True)
+        port = int(os.environ.get("PORT") or args.port)
+        server = ThreadingHTTPServer(("0.0.0.0", port), make_handler(app, Sessions(app, ROOT / "data" / "online" / "sessions")))
+        print(f"CheckUp Track (онлайн-версия) слушает порт {port}", flush=True)
+        for line in app.assistant.status():
+            print(line, flush=True)
+        server.serve_forever()
+        return
     app = App(today=args.today)
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))

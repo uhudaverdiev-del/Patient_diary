@@ -315,6 +315,22 @@
   .onb .card { margin-top: 20px; padding: 24px; }
   .onb-step { font-size: .88rem; color: var(--muted); }
 
+  /* Вход (демо): телефон и код из СМС */
+  .login { min-height: 100vh; display: grid; place-items: center; padding: 32px 16px; }
+  .login-box { width: 100%; max-width: 420px; }
+  .login .brand { padding: 0 0 28px; font-size: 1.15rem; }
+  .login h1 { font-size: 1.6rem; }
+  .login .card { margin-top: 20px; padding: 24px; }
+  .phone { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+  .phone:focus-within { outline: 3px solid var(--action); outline-offset: 2px; }
+  .phone span { display: grid; place-items: center; padding: 0 12px; background: var(--surface-2); color: var(--muted); font-weight: 500; }
+  form .field .phone input { border: 0; border-radius: 0; outline: none; flex: 1; min-width: 0; }
+  #lgCode { letter-spacing: .4em; font-size: 1.3rem; max-width: 180px; }
+  .login-or { display: grid; gap: 10px; margin-top: 20px; text-align: center; }
+  .login-err { color: var(--overdue); font-size: .92rem; margin: -6px 0 12px; }
+  .online-banner { background: var(--action-soft); color: var(--ink); }
+  .online-banner .in { max-width: 980px; margin: 0 auto; padding: 10px 32px; font-size: .92rem; }
+
   /* AIbert */
   .avatar { display: block; border-radius: 50%; flex: none; }
   .wordmark { font-family: "Unbounded", sans-serif; font-weight: 600; letter-spacing: -.01em; }
@@ -371,7 +387,7 @@
     .wrap { margin-left: 0; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
     main { padding: 16px 16px 40px; }
     footer { padding: 0 16px 24px; }
-    .demo-banner .in { padding: 10px 16px; }
+    .demo-banner .in, .online-banner .in { padding: 10px 16px; }
     .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
       position: sticky; top: 0; z-index: 8; }
     .topbar .brand { padding: 0; font-size: 1rem; }
@@ -414,7 +430,32 @@
 </style>
 </head>
 <body>
-<div class="app">
+<section class="login" id="login" hidden aria-labelledby="lgTitle">
+  <div class="login-box">
+    <div class="brand"><img class="logo" src="/icon.svg" alt="" width="32" height="32">CheckUp Track</div>
+    <h1 id="lgTitle">Вход</h1>
+    <p class="lead">Личный план бесплатных обследований по полису ОМС.</p>
+    <div class="card">
+      <form id="lgPhoneForm">
+        <div class="field"><label for="lgPhone">Номер телефона</label>
+          <div class="phone"><span>+7</span><input id="lgPhone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="900 000-00-00" maxlength="15" required></div></div>
+        <p class="login-err" id="lgPhoneErr" hidden>Введите 10 цифр номера после +7.</p>
+        <button class="btn" type="submit" style="width:100%">Получить код</button>
+      </form>
+      <form id="lgCodeForm" hidden>
+        <p style="margin-top:0">Код отправлен на <b id="lgSentTo"></b>.</p>
+        <div class="field"><label for="lgCode">Код из СМС</label>
+          <input id="lgCode" inputmode="numeric" autocomplete="one-time-code" maxlength="4" required></div>
+        <p class="login-err" id="lgCodeErr" hidden>Неверный код. В демо-версии код 1234.</p>
+        <button class="btn" type="submit" style="width:100%">Войти</button>
+        <button class="linkbtn muted" type="button" id="lgBack" style="margin-top:12px">Изменить номер</button>
+      </form>
+    </div>
+    <p class="muted small">Демо-версия входа: СМС не отправляется, введите код 1234. Номер телефона нигде не сохраняется.</p>
+    <div class="login-or"><button class="btn ghost" type="button" id="lgDemo">Посмотреть на примере без входа</button></div>
+  </div>
+</section>
+<div class="app" id="appRoot">
   <aside class="side" aria-label="Разделы">
     <a class="brand" href="#" data-tab="home"><img class="logo" src="/icon.svg" alt="" width="32" height="32">CheckUp Track</a>
     <nav class="stack" style="gap:4px" id="sideNav"></nav>
@@ -506,7 +547,7 @@
     <div class="field"><label for="dTest">Какая услуга указана</label><select id="dTest" required></select></div>
     <div class="field"><label for="dDate">Дата в выписке</label><input type="date" id="dDate" required></div>
     <div class="field"><label for="dComment">Комментарий для себя</label><textarea id="dComment" rows="2" maxlength="500" placeholder="Например: в этот день была в отпуске"></textarea></div>
-    <p class="muted small">Запись хранится только на этом компьютере. В плане она не будет учитываться, а заявление в страховую можно будет составить одной кнопкой.</p>
+    <p class="muted small">Запись хранится <span data-where>только на этом компьютере</span>. В плане она не будет учитываться, а заявление в страховую можно будет составить одной кнопкой.</p>
     <div class="sheet-actions">
       <button type="button" class="btn quiet" id="dCancel">Отмена</button>
       <button type="submit" class="btn">Сохранить</button>
@@ -532,7 +573,7 @@
   <div class="sheet">
     <h2>Режим показа</h2>
     <p class="muted" style="margin-top:-8px">Вымышленные пациенты для презентации. Выберите, кого показать.</p>
-    <div class="banner block" id="demoWarn" hidden>Демо-пациент заменит ваши данные на этом компьютере: профиль, отметки и файлы. Сначала скачайте их в профиле, если они нужны.</div>
+    <div class="banner block" id="demoWarn" hidden>Демо-пациент заменит ваши данные <span data-where>на этом компьютере</span>: профиль, отметки и файлы. Сначала скачайте их в профиле, если они нужны.</div>
     <div class="demos" id="demoList"></div>
     <div class="field"><label for="today">Дата расчёта</label>
       <input type="date" id="today" style="max-width:240px">
@@ -807,7 +848,7 @@ function onboardingHtml() {
     <h1>За 2 минуты узнайте, какие обследования вам положены бесплатно</h1>
     <p class="lead">Это ваше право по полису ОМС, то есть обычному медицинскому полису. Ответьте на четыре вопроса: дневник покажет личный план по приказам Минздрава и поможет записаться через Госуслуги.</p>
     <div class="card"><div class="onb-step">Шаг ${ob.step} из 4</div><div style="margin-top:10px">${body}</div></div>
-    <p class="muted small">Данные хранятся только на этом компьютере. <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
+    <p class="muted small">${storedText()} <button class="linkbtn" data-demo-open>Посмотреть на примере</button></p>
   </div>`;
 }
 
@@ -937,12 +978,13 @@ function myDataHtml(plan) {
     : `Согласие на обработку данных о здоровье дано ${fmt(c.date)} (версия ${esc(c.version)}).`;
   return `<h2>Мои данные</h2>
     <div class="card narrow">
-      <p style="margin-top:0">${status} Данные хранятся только на этом компьютере. <a href="/privacy" target="_blank" rel="noopener">Как мы обрабатываем данные</a></p>
+      <p style="margin-top:0">${status} ${storedText()} <a href="/privacy" target="_blank" rel="noopener">Как мы обрабатываем данные</a></p>
       <div class="row-btns" style="margin-top:12px">
         <a class="btn ghost" href="/export.zip" download>Скачать все мои данные</a>
         <button class="btn danger" type="button" data-reset>${c && !c.demo ? "Отозвать согласие и удалить данные" : "Удалить данные и начать заново"}</button>
       </div>
-      <p class="muted small">Архив содержит профиль, отметки, загруженные файлы и журнал вопросов к AIbert. Отзыв согласия сразу удаляет всё это с компьютера.</p>
+      <p class="muted small">Архив содержит профиль, отметки, загруженные файлы и журнал вопросов к AIbert. Отзыв согласия сразу удаляет всё это ${S.online ? "с сервера" : "с компьютера"}.</p>
+      <button class="linkbtn muted" type="button" data-logout>Выйти</button>
     </div>`;
 }
 
@@ -1162,8 +1204,8 @@ function chrome() {
   ss.hidden = !(plan.sun && plan.ready && !isEmpty(plan)) || S.tab === "home";
   if (!ss.hidden) ss.innerHTML = `<span class="sun">${sunSvg(plan.sun)}</span><span><b>${plan.sun.lit} из ${plan.sun.total}</b>${rayWord(plan.sun.total)} зажжено</span>`;
   const demo = plan.consent && plan.consent.demo;
-  $("#demoBanner").innerHTML = demo ? `<div class="demo-banner"><div class="in">Это демо-пациент: вымышленные данные${$("#today").value ? `, расчёт на ${fmt($("#today").value)}` : ""}.
-    <button class="linkbtn" data-demo-open>Сменить пациента</button><button class="linkbtn" data-exit-demo>Выйти из демо</button></div></div>` : "";
+  $("#demoBanner").innerHTML = (S.online ? `<div class="online-banner"><div class="in">Онлайн-версия для знакомства: всё, что вы введёте, удалится через ${S.ttl} часов.</div></div>` : "") + (demo ? `<div class="demo-banner"><div class="in">Это демо-пациент: вымышленные данные${$("#today").value ? `, расчёт на ${fmt($("#today").value)}` : ""}.
+    <button class="linkbtn" data-demo-open>Сменить пациента</button><button class="linkbtn" data-exit-demo>Выйти из демо</button></div></div>` : "");
 }
 
 function render() {
@@ -1215,10 +1257,10 @@ function renderChat() {
   $("#chatLog").innerHTML = msgs || `<div class="msg bot">Здравствуйте${name ? ", " + esc(name) : ""}. Я AIbert. Помогу разобраться с планом обследований, ОМС и подготовкой к визиту.
     ${S.aiContext ? `<br><br>Сейчас смотрим: <b>${esc(S.aiContext.title)}</b>.` : ""}</div>`;
   $("#aiChips").innerHTML = chipsFor(S.aiContext).map((q) => `<button class="chip-q" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
-  $("#aiPrivacy").innerHTML = `<summary>${S.llm ? "Режим: YandexGPT с проверкой источников" : "Режим: на этом компьютере, без интернета"}</summary>
+  $("#aiPrivacy").innerHTML = `<summary>${S.llm ? "Режим: YandexGPT с проверкой источников" : S.online ? "Режим: без нейросети" : "Режим: на этом компьютере, без интернета"}</summary>
     <p>${S.llm ? "Вопрос отправляется в YandexGPT (Яндекс Облако, серверы в России) вместе с возрастом, полом и пунктами плана. Имя, дата рождения, результаты анализов и файлы не отправляются. Телефоны, e-mail, номера полиса, СНИЛС и паспорта вырезаются автоматически."
-      : "Вопросы обрабатываются на этом компьютере и никуда не отправляются."}
-      ${!S.llm && S.llmStatus.length > 1 ? "<br>" + S.llmStatus.slice(1).map(esc).join("<br>") : ""}
+      : S.online ? "Ответ собирается из вашего плана и справки, вопрос никуда дальше не отправляется." : "Вопросы обрабатываются на этом компьютере и никуда не отправляются."}
+      ${!S.llm && !S.online && S.llmStatus.length > 1 ? "<br>" + S.llmStatus.slice(1).map(esc).join("<br>") : ""}
       <a href="/privacy" target="_blank" rel="noopener">Подробнее</a></p>`;
   const log = $("#chatLog"); log.scrollTop = log.scrollHeight;
 }
@@ -1318,7 +1360,7 @@ function openDemo() {
 
 async function loadDemo(id) {
   const c = S.plan.consent;
-  if (c && !c.demo && !confirm("Демо-пациент заменит ваши данные на этом компьютере. Продолжить?")) return;
+  if (c && !c.demo && !confirm(`Демо-пациент заменит ваши данные ${S.online ? "в этом дневнике" : "на этом компьютере"}. Продолжить?`)) return;
   S.plan = await api("POST", "/api/demo", { id }); S.chat = []; S.risen = false;
   go("home"); toast("Открыт демо-пациент");
 }
@@ -1614,14 +1656,68 @@ document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (
 // Тема «как в системе» следит за сменой темы в системе.
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => S.plan && render());
 
+/* ---------- Вход (демо) ---------- */
+// Показываем, как будет выглядеть вход в боевой версии. Номер не уходит на сервер и не сохраняется.
+
+function storedText() {
+  return S.online ? `Онлайн-версия: данные хранятся ${S.ttl} часов и удаляются.` : "Данные хранятся только на этом компьютере.";
+}
+function signedIn() { try { return sessionStorage.getItem("signedIn") === "1"; } catch (e) { return true; } }
+function showLogin(on) {
+  $("#login").hidden = !on; $("#appRoot").hidden = on;
+  if (on) { $("#lgPhoneForm").hidden = false; $("#lgCodeForm").hidden = true; $("#lgPhone").value = ""; $("#lgPhone").focus(); }
+}
+function signIn() {
+  try { sessionStorage.setItem("signedIn", "1"); } catch (e) {}
+  showLogin(false); render();
+}
+const phoneDigits = () => $("#lgPhone").value.replace(/\D/g, "").replace(/^[78](?=\d{10}$)/, "");
+$("#lgPhone").addEventListener("input", (e) => {
+  let d = e.target.value.replace(/\D/g, "");
+  if (d.length === 11 && /^[78]/.test(d)) d = d.slice(1); // вставили номер целиком: +7… или 8…
+  d = d.slice(0, 10);
+  // 900 000-00-00
+  e.target.value = d.slice(0, 3) + (d.length > 3 ? " " + d.slice(3, 6) : "") + (d.length > 6 ? "-" + d.slice(6, 8) : "") + (d.length > 8 ? "-" + d.slice(8) : "");
+  $("#lgPhoneErr").hidden = true;
+});
+$("#lgPhoneForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const d = phoneDigits();
+  if (d.length !== 10) { $("#lgPhoneErr").hidden = false; return; }
+  $("#lgSentTo").textContent = `+7 ${d.slice(0, 3)} ${d.slice(3, 6)}-${d.slice(6, 8)}-${d.slice(8)}`;
+  $("#lgPhoneForm").hidden = true; $("#lgCodeForm").hidden = false; $("#lgCode").value = ""; $("#lgCodeErr").hidden = true; $("#lgCode").focus();
+});
+$("#lgCodeForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if ($("#lgCode").value.trim() !== "1234") { $("#lgCodeErr").hidden = false; $("#lgCode").select(); return; }
+  $("#lgPhone").value = ""; signIn();
+});
+$("#lgCode").addEventListener("input", () => { $("#lgCodeErr").hidden = true; });
+$("#lgBack").onclick = () => { $("#lgCodeForm").hidden = true; $("#lgPhoneForm").hidden = false; $("#lgPhone").focus(); };
+$("#lgDemo").onclick = () => { signIn(); if (S.plan) openDemo(); else S.demoAfterInit = true; };
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-logout]")) return;
+  try { sessionStorage.removeItem("signedIn"); } catch (err) {}
+  showLogin(true);
+});
+
 (async function init() {
+  if (!signedIn()) showLogin(true);
   try { S.risen = sessionStorage.getItem("risen") === "1"; } catch (e) {}
   let info;
-  [S.tests, S.demos, S.plan, , info, S.consent] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant"), api("GET", "/api/consent")]);
+  let mode;
+  [S.tests, S.demos, S.plan, , info, S.consent, mode] = await Promise.all([api("GET", "/api/tests"), api("GET", "/api/demos"), api("GET", "/api/plan"), loadWikiList(""), api("GET", "/api/assistant"), api("GET", "/api/consent"), api("GET", "/api/mode")]);
+  S.online = mode.online; S.ttl = mode.ttl_hours;
+  if (S.online) {
+    // В онлайн-версию файлы не загружаются, а данные живут в дневнике этого браузера.
+    $("#mFileRow").hidden = true;
+    document.querySelectorAll("[data-where]").forEach((el) => { el.textContent = "в этом онлайн-дневнике"; });
+  }
   loadNews();
   S.llm = info.llm_enabled;
   S.llmStatus = info.status || [];
   render();
+  if (S.demoAfterInit) openDemo();
 })();
 </script>
 </body>
