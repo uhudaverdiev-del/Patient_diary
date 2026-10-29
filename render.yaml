@@ -1,0 +1,17 @@
+# Онлайн-версия CheckUp Track на бесплатном тарифе Render (инструкция: docs/hosting.md).
+services:
+  - type: web
+    name: checkup-track
+    runtime: python
+    plan: free
+    buildCommand: python --version
+    startCommand: python app.py --public
+    healthCheckPath: /api/mode
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      # Ключи YandexGPT вписываются только в настройках Render, в репозиторий они не попадают.
+      - key: YANDEX_API_KEY
+        sync: false
+      - key: YANDEX_FOLDER_ID
+        sync: false

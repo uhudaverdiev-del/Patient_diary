@@ -5,3 +5,4 @@ data/user/
 .env.txt
 env.txt
 /env
+data/online/
