@@ -23,6 +23,7 @@ from diary.engine import build_plan, describe_rule, load_rules, parse_date
 from diary.letters import dispute_letter, refusal_letter
 from diary.metrics import summarize
 from diary.motivation import sun_rays
+from diary.news import News
 from diary.reminders import reminders, to_ics
 from diary.report import render_report
 from diary.storage import Storage, list_demos
@@ -79,12 +80,13 @@ def test_catalog(rules_data):
 
 
 class App:
-    def __init__(self, storage=None, today=None, assistant=None):
+    def __init__(self, storage=None, today=None, assistant=None, news=None):
         self.storage = storage or Storage()
         self.today = today
         self.rules = load_rules()
         self.wiki = load_wiki()
         self.assistant = assistant or Assistant(self.wiki, log_path=self.storage.user_dir / "llm_log.jsonl")
+        self.news = news or News(self.storage.user_dir / "news_cache.json")
 
     def plan(self, today=None):
         state = self.storage.load()
@@ -190,6 +192,8 @@ class App:
                 q = (query.get("q") or [""])[0]
                 found = search(self.wiki, q) if q.strip() else list(self.wiki.values())
                 return 200, [{k: a[k] for k in ("slug", "title", "category", "summary")} for a in found]
+            if method == "GET" and path == "/api/news":
+                return 200, self.news.get()
             if method == "GET" and path.startswith("/api/wiki/"):
                 return 200, self.wiki[path.rsplit("/", 1)[-1]]
             if method == "POST" and path == "/api/ask":
