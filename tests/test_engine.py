@@ -68,7 +68,7 @@ class AnnaTest(unittest.TestCase):
 
     def test_every_item_has_source(self):
         for item in self.items.values():
-            self.assertIn("404н", item["source"]["title"])
+            self.assertTrue(any(word in item["source"]["title"] for word in ("404н", "Программе государственных гарантий")))
             self.assertTrue(item["source"]["clause"])
 
     def test_marking_done_recalculates_status(self):
@@ -130,8 +130,9 @@ class AgeRulesTest(unittest.TestCase):
         self.assertFalse(items["psa"]["todo_this_year"])
 
     def test_progress_counts_psa_only_when_done(self):
-        self.assertEqual(plan_for("ivan")["summary"]["progress_percent"], 75)
-        done = plan_for("ivan", [{"test": "psa", "date": "2026-03-01"}, {"test": "egd", "date": "2026-03-01"}])
+        self.assertEqual(plan_for("ivan")["summary"]["progress_percent"], 67)
+        done = plan_for("ivan", [{"test": "psa", "date": "2026-03-01"}, {"test": "egd", "date": "2026-03-01"},
+                                 {"test": "reproductive", "date": "2026-03-01"}])
         self.assertEqual(done["summary"]["progress_percent"], 100)
 
     def test_calendar_year_age_band(self):
@@ -164,6 +165,25 @@ class AgeRulesTest(unittest.TestCase):
         self.assertEqual(items["dispanserization_18_39"]["next_due"], "2027-01-01")
         self.assertNotIn("dispanserization_40", items)
         self.assertEqual(items["fobt_40_64"]["next_due"], "2027-01-01")
+
+    def test_reproductive_health_18_to_49(self):
+        # Программа госгарантий, разд. IV: вместе с профосмотром или диспансеризацией, 18–49 лет.
+        woman = by_id(build_plan({"birth_date": "1996-05-01", "sex": "female"}, today=TODAY))
+        man = by_id(build_plan({"birth_date": "1990-05-01", "sex": "male"}, today=TODAY))
+        self.assertIn("приём акушера-гинеколога", woman["reproductive_female"]["includes"])
+        self.assertIn("уролога", man["reproductive_male"]["includes"])
+        self.assertNotIn("reproductive_male", woman)
+        older = by_id(build_plan({"birth_date": "1970-05-01", "sex": "female"}, today=TODAY))
+        self.assertNotIn("reproductive_female", older)
+        unknown = by_id(build_plan({"birth_date": "1996-05-01"}, today=TODAY))
+        self.assertFalse([k for k in unknown if k.startswith("reproductive")])
+
+    def test_reproductive_health_recalculated_after_mark(self):
+        plan = build_plan({"birth_date": "1996-05-01", "sex": "female"},
+                          [{"test": "reproductive", "date": "2026-09-01"}], today=TODAY)
+        item = by_id(plan)["reproductive_female"]
+        self.assertEqual(item["status"], "actual")
+        self.assertEqual(item["next_due"], "2027-09-01")
 
     def test_mastectomy_excludes_mammography(self):
         self.assertNotIn("mammography", by_id(plan_for("olga_39")))

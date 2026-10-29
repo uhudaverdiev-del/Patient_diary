@@ -46,7 +46,7 @@ class RemindersTest(unittest.TestCase):
     def test_no_data_reminded_after_overdue(self):
         items = reminders(demo_plan("anna"))
         no_data = [r for r in items if r["no_data"]]
-        self.assertEqual(len(no_data), 4)
+        self.assertEqual(len(no_data), 5)
         self.assertEqual(no_data[0]["text"], "нет отметки о прохождении, пройдите при ближайшем визите.")
         self.assertTrue(items[0]["overdue"])
 
@@ -74,7 +74,7 @@ class IcsTest(unittest.TestCase):
         self.assertEqual(self.ics.count("BEGIN:VALARM"), 2 * n)
 
     def test_overdue_grouped_a_week_ahead(self):
-        self.assertIn("SUMMARY:Записаться в поликлинику: 10 обследований", self.text)
+        self.assertIn("SUMMARY:Записаться в поликлинику: 11 обследований", self.text)
         self.assertIn("• ЭКГ в покое — срок 10.05.2024", self.text)
         self.assertIn("Нет отметки о прохождении:\\n• Измерение внутриглазного давления", self.text)
         self.assertNotIn("DTSTART;VALUE=DATE:2024", self.ics)
